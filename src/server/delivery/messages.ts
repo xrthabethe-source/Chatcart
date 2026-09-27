@@ -3,7 +3,6 @@
 // rendered: no status, date or tracking number that isn't on the
 // shipment record.
 import { sastDate } from "./dates.ts";
-import { rands } from "./pricing.ts";
 import type { Destination, ShipmentStatus } from "./types.ts";
 
 export interface ShipmentSummaryInput {
@@ -84,36 +83,86 @@ export function renderTrackingSummary(s: ShipmentSummaryInput): string {
   return lines.join("\n");
 }
 
-/** Proactive notification text for a shipment status change. */
-export function renderStatusNotification(s: ShipmentSummaryInput): string | null {
+// ─── Approved WhatsApp templates ──────────────────────────────────────
+// Business-initiated messages (outside the 24h window) must use templates
+// pre-approved by Meta. Each entry's `params` fill {{1}}, {{2}}… in order,
+// and `body` is the exact text to submit — docs/whatsapp-templates.md is
+// generated from this list, so code and approved text can't drift apart.
+
+export interface TemplateSpec {
+  name: string;
+  body: string;
+  example: string[];
+}
+
+export const WHATSAPP_TEMPLATES: Record<string, TemplateSpec> = {
+  order_paid: {
+    name: "order_paid",
+    body: "✅ Payment of {{1}} received for order {{2}}.\nDelivery: {{3}}\nWe'll let you know when it ships.",
+    example: ["R859.95", "SHS-1048", "Collect at PEP Jabulani Mall"],
+  },
+  shipment_booked: {
+    name: "shipment_booked",
+    body: "📦 Order {{1}} is booked with {{2}}.\nTracking no: {{3}}\nReply TRACK any time for an update.",
+    example: ["SHS-1048", "PAXI", "PX-778812"],
+  },
+  shipment_collected: {
+    name: "shipment_collected",
+    body: "🚚 Order {{1}} is on its way. {{2}} has your parcel.\nReply TRACK any time for an update.",
+    example: ["SHS-1048", "The Courier Guy"],
+  },
+  shipment_in_transit: {
+    name: "shipment_in_transit",
+    body: "🚚 Order {{1}} is in transit to {{2}}.\nReply TRACK any time for an update.",
+    example: ["SHS-1048", "PEP Jabulani Mall"],
+  },
+  shipment_ready_for_collection: {
+    name: "shipment_ready_for_collection",
+    body: "🎉 Order {{1}} is ready for collection at {{2}}. Take your ID and this order number with you.",
+    example: ["SHS-1048", "PEP Jabulani Mall"],
+  },
+  shipment_out_for_delivery: {
+    name: "shipment_out_for_delivery",
+    body: "🛵 Order {{1}} is out for delivery today.\nReply TRACK any time for an update.",
+    example: ["SHS-1049"],
+  },
+  shipment_delivered: {
+    name: "shipment_delivered",
+    body: "✅ Order {{1}} has been delivered or collected. Enjoy!",
+    example: ["SHS-1048"],
+  },
+  shipment_exception: {
+    name: "shipment_exception",
+    body: "⚠️ There's a delivery problem with order {{1}}. The seller has been alerted and will contact you.",
+    example: ["SHS-1048"],
+  },
+};
+
+/** Template name + ordered parameters for a shipment status notification. */
+export function shipmentTemplate(s: ShipmentSummaryInput): { name: string; params: string[] } | null {
   const courier = courierLabel(s.providerCode, s.providerName);
-  const where = s.destination.kind === "PICKUP_POINT" ? s.destination.location.name : null;
-  const ref = s.trackingNumber ? `\nTracking no: ${s.trackingNumber}` : "";
-  const link = s.trackingUrl ? `\n${s.trackingUrl}` : "";
+  const where = s.destination.kind === "PICKUP_POINT" ? s.destination.location.name : destinationLabel(s.destination);
   switch (s.status) {
     case "BOOKED":
-      return `📦 Order ${s.orderNumber} is booked with ${courier}.${ref}${link}`;
+      return { name: "shipment_booked", params: [s.orderNumber, courier, s.trackingNumber ?? "to follow"] };
     case "COLLECTED":
-      return `🚚 Order ${s.orderNumber} is on its way — ${courier} has your parcel.${ref}`;
+      return { name: "shipment_collected", params: [s.orderNumber, courier] };
     case "IN_TRANSIT":
-      return `🚚 Order ${s.orderNumber} is in transit${where ? ` to ${where}` : ""}.${ref}`;
+      return { name: "shipment_in_transit", params: [s.orderNumber, where] };
     case "READY_FOR_COLLECTION":
-      return where
-        ? `🎉 Order ${s.orderNumber} is ready for collection at ${where}. Take your ID and this order number with you.${ref}`
-        : `🎉 Order ${s.orderNumber} is ready for collection.`;
+      return { name: "shipment_ready_for_collection", params: [s.orderNumber, where] };
     case "OUT_FOR_DELIVERY":
-      return `🛵 Order ${s.orderNumber} is out for delivery today.${ref}`;
+      return { name: "shipment_out_for_delivery", params: [s.orderNumber] };
     case "DELIVERED":
-      return where || s.providerCode === "SELLER_COLLECTION"
-        ? `✅ Order ${s.orderNumber} has been collected. Enjoy!`
-        : `✅ Order ${s.orderNumber} has been delivered. Enjoy!`;
+      return { name: "shipment_delivered", params: [s.orderNumber] };
     case "EXCEPTION":
-      return `⚠️ There's a delivery problem with order ${s.orderNumber}. The seller has been alerted and will contact you.${ref}`;
+      return { name: "shipment_exception", params: [s.orderNumber] };
     default:
       return null;
   }
 }
 
-export function renderOrderPaid(orderNumber: string, totalCents: number, deliveryLine: string): string {
-  return `✅ Payment of ${rands(totalCents)} received for order ${orderNumber}.\n${deliveryLine}\nWe'll let you know when it ships.`;
+/** Fills a template body with its parameters (used by tests and docs). */
+export function fillTemplate(body: string, params: string[]): string {
+  return body.replace(/\{\{(\d+)\}\}/g, (_, n) => params[Number(n) - 1] ?? "");
 }

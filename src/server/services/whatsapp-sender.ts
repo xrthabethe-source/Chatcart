@@ -75,7 +75,10 @@ export function getWhatsAppSender(): WhatsAppSender {
   if (override) return override;
   if (!cached) {
     const token = process.env.WHATSAPP_META_ACCESS_TOKEN;
-    cached = token ? new MetaWhatsAppSender(token) : new ConsoleWhatsAppSender();
+    // Must match the language the templates were approved in (Meta's
+    // code, e.g. "en" or "en_US").
+    const language = process.env.WHATSAPP_TEMPLATE_LANGUAGE || "en";
+    cached = token ? new MetaWhatsAppSender(token, "v21.0", language) : new ConsoleWhatsAppSender();
   }
   return cached;
 }

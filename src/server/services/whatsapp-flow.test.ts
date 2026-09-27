@@ -110,3 +110,9 @@ test("address parsing", () => {
   assert.equal(parseAddress("Soweto"), null);
   assert.equal(parseAddress("12 Main, Suburb, Town, 18O4"), null);
 });
+
+test("WhatsApp: a shop with no products yet says so instead of an empty list", async () => {
+  const { tenant } = await createSeller("wa-empty");
+  const reply = await handleWhatsAppMessage(tenant.id, { phone: "27830000009", text: "hi" });
+  assert.match(reply.text, /still adding our products/);
+});

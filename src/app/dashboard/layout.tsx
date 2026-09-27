@@ -17,6 +17,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             <Link href="/dashboard/orders">Orders</Link>
             <Link href="/dashboard/products">Products</Link>
             <Link href="/dashboard/delivery">Delivery settings</Link>
+            <Link href="/dashboard/settings">Shop settings</Link>
             <Link href={`/shop/${user.tenantSlug}`} target="_blank">View shop ↗</Link>
           </nav>
           <span style={{ marginLeft: "auto" }}><LogoutButton /></span>

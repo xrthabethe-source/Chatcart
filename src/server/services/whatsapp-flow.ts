@@ -188,6 +188,12 @@ class Flow {
   private async greeting(): Promise<WhatsAppReply> {
     const products = await listActiveProducts(this.tenantId);
     const tenant = await db.tenant.findUnique({ where: { id: this.tenantId } });
+    if (products.length === 0) {
+      return {
+        text: `Hi! 👋 Welcome to ${tenant?.name ?? "our shop"}. We're still adding our products — please check back soon.\nSend TRACK to track an order.`,
+        options: [{ id: "track", title: "Track My Order" }],
+      };
+    }
     const list = products.slice(0, 10).map((p) => `• ${p.name} — ${rands(p.priceCents)}`).join("\n");
     return {
       text: `Hi! 👋 Welcome to ${tenant?.name ?? "our shop"}.\n\n${list}\n\nTell me what you'd like, e.g. "I want 2 ${products[0]?.name ?? "Product A"}".\nSend TRACK to track an order.`,

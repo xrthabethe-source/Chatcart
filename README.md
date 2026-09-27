@@ -109,7 +109,7 @@ Shop:     Products R800 / PAXI R59.95 / TOTAL R859.95 → PAY SECURELY
 - **`TRACK`** replies with the order number, courier, PAXI destination, status, expected date and tracking number. It only shows what the provider has confirmed.
 - **`FORGET`** clears remembered delivery details.
 
-**Notifications:** order paid, booked, collected, in transit, ready for PAXI collection, out for delivery, delivered, delivery problem. They go through a deduplicated outbox, so re-polled tracking never double-messages. Inside the 24-hour customer-service window they're sent as text. Outside it they need an approved template: the template name is `shipment_<status>` / `order_paid` and the parameters are stored per message. **Create and get these templates approved in Meta Business Manager before going live.**
+**Notifications:** order paid, booked, collected, in transit, ready for PAXI collection, out for delivery, delivered, delivery problem. They go through a deduplicated outbox, so re-polled tracking never double-messages. Inside the 24-hour customer-service window they're sent as text. Outside it they need an approved template. The exact template texts are in [docs/whatsapp-templates.md](docs/whatsapp-templates.md), generated from the code, and customers get the same wording either way. **Get these approved in WhatsApp Manager before going live.**
 
 **Consent (POPIA):**
 - Web customers are remembered only if they tick "Remember my delivery choice on this device". That is tied to an httpOnly device cookie, so typing someone's phone number never reveals their addresses.
@@ -150,12 +150,7 @@ npm run test:local && npm run typecheck && npm run lint
 
 **Cron:** every 15–30 minutes, `POST /api/v1/delivery/tracking/sync` with `Authorization: Bearer $CRON_SECRET`. It refreshes courier tracking and flushes the WhatsApp outbox.
 
-**WhatsApp (Meta Cloud API):**
-1. Set `WHATSAPP_META_APP_SECRET`, `WHATSAPP_META_VERIFY_TOKEN` and `WHATSAPP_META_ACCESS_TOKEN`.
-2. Set the shop's `tenants.whatsapp_phone_id`.
-3. Register `https://<domain>/api/v1/whatsapp/webhook` as the webhook URL.
-
-Without an access token, outbound messages are logged to the console.
+**Deploying and connecting WhatsApp:** follow [docs/deploy.md](docs/deploy.md). It covers Railway (`railway.json` for the web app, `railway.cron.json` for the 15-minute tracking job), Meta app setup, linking the number under **Shop settings**, and the message templates in [docs/whatsapp-templates.md](docs/whatsapp-templates.md). After editing a template's wording in `src/server/delivery/messages.ts`, regenerate that doc with `node --experimental-strip-types scripts/generate-template-doc.ts`. A test fails if the two drift apart.
 
 ## Not built yet
 

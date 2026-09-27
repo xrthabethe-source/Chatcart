@@ -5,7 +5,8 @@
 // once. Sending happens after the database write (best-effort
 // immediately, and again from the cron sweep), never inside it.
 import { db } from "../db.ts";
-import { destinationLabel, renderOrderPaid, renderStatusNotification, type ShipmentSummaryInput } from "../delivery/messages.ts";
+import { destinationLabel, fillTemplate, shipmentTemplate, WHATSAPP_TEMPLATES, type ShipmentSummaryInput } from "../delivery/messages.ts";
+import { rands } from "../delivery/pricing.ts";
 import { NOTIFY_ON } from "../delivery/status.ts";
 import type { Destination, ShipmentStatus } from "../delivery/types.ts";
 import { getWhatsAppSender } from "./whatsapp-sender.ts";
@@ -55,13 +56,16 @@ async function enqueue(
 export async function enqueueShipmentNotification(shipmentId: string, status: ShipmentStatus) {
   if (!NOTIFY_ON.includes(status)) return false;
   const summary = await shipmentSummary(shipmentId);
-  const body = renderStatusNotification({ ...summary, status });
-  if (!body) return false;
+  const template = shipmentTemplate({ ...summary, status });
+  if (!template) return false;
+  // Same wording inside and outside the 24h window: the free-form text is
+  // the approved template filled in.
+  const body = fillTemplate(WHATSAPP_TEMPLATES[template.name]!.body, template.params);
   const created = await enqueue(
     summary.tenantId,
     summary.customerPhone,
-    `shipment_${status.toLowerCase()}`,
-    [summary.orderNumber, destinationLabel(summary.destination), summary.trackingNumber ?? "-"],
+    template.name,
+    template.params,
     body,
     `shipment:${shipmentId}:${status}`,
   );
@@ -75,18 +79,21 @@ export async function enqueueOrderNotification(tenantId: string, orderId: string
     include: { customer: true, deliveryProvider: true },
   });
   const destination = order.deliveryDestination as unknown as Destination;
-  const deliveryLine =
+  const params = [
+    rands(order.totalCents),
+    order.number,
     destination.kind === "PICKUP_POINT"
-      ? `Collecting at: ${destination.location.name}`
+      ? `Collect at ${destination.location.name}`
       : destination.kind === "SELLER_COLLECTION"
-        ? "Collecting from the seller — we'll tell you when it's ready."
-        : `Delivering to: ${destinationLabel(destination)}`;
+        ? "Collect from the seller"
+        : `Deliver to ${destinationLabel(destination)}`,
+  ];
   const created = await enqueue(
     tenantId,
     order.customer.phone,
     "order_paid",
-    [order.number, (order.totalCents / 100).toFixed(2), destinationLabel(destination)],
-    renderOrderPaid(order.number, order.totalCents, deliveryLine),
+    params,
+    fillTemplate(WHATSAPP_TEMPLATES.order_paid!.body, params),
     `order:${orderId}:${kind}`,
   );
   if (created) await dispatchOutbox(tenantId).catch((e) => console.error("WhatsApp dispatch failed:", e));
