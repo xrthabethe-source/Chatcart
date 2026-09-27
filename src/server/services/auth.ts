@@ -7,7 +7,7 @@ import { ensureTenantDeliveryProviders } from "./delivery-catalogue.ts";
 
 const scrypt = promisify(scryptCb) as (password: string, salt: Buffer, keylen: number) => Promise<Buffer>;
 
-export const SESSION_COOKIE_NAME = "hs_session";
+export const SESSION_COOKIE_NAME = "cc_session";
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 export interface AuthenticatedUser {

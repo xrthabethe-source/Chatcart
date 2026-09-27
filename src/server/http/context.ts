@@ -3,7 +3,7 @@ import { db } from "../db.ts";
 import { getSessionUser, isPlatformAdmin, SESSION_COOKIE_NAME, type AuthenticatedUser } from "../services/auth.ts";
 import { ForbiddenError, NotFoundError, UnauthenticatedError } from "../services/errors.ts";
 
-export const CUSTOMER_COOKIE_NAME = "hs_customer";
+export const CUSTOMER_COOKIE_NAME = "cc_customer";
 
 export async function getCurrentUser(): Promise<AuthenticatedUser | null> {
   const store = await cookies();

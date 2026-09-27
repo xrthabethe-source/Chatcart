@@ -1,4 +1,4 @@
-# HealthSweets Shop
+# Chatcart
 
 A multi-tenant, WhatsApp-first shop platform for South African sellers. Delivery is built around how customers here actually receive parcels:
 
@@ -139,10 +139,10 @@ Actions, where the provider supports them:
 
 ```bash
 createuser shop_dev --createdb && psql -d postgres -c "ALTER ROLE shop_dev WITH PASSWORD 'shop_dev';"
-createdb -O shop_dev healthsweets_dev && createdb -O shop_dev healthsweets_test
+createdb -O shop_dev chatcart_dev && createdb -O shop_dev chatcart_test
 cp .env.example .env            # set DELIVERY_CREDENTIALS_KEY=$(openssl rand -base64 32)
 npm install && npm run db:generate
-npm run db:migrate:deploy        # repeat with DATABASE_URL pointing at healthsweets_test
+npm run db:migrate:deploy        # repeat with DATABASE_URL pointing at chatcart_test
 node --env-file=.env --experimental-strip-types prisma/seed.ts   # demo shop at /shop/demo
 npm run dev
 npm run test:local && npm run typecheck && npm run lint

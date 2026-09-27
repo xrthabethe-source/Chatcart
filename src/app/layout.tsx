@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "HealthSweets Shop",
+  title: "Chatcart",
   description: "Order on WhatsApp or online. Collect at PEP / PAXI, courier to your door, same-day or collect from the seller.",
 };
 

@@ -1,4 +1,4 @@
-// HealthSweets Shop schema.
+// Chatcart schema.
 //
 // Multi-tenancy: shared schema, `tenantId` on every tenant-owned table,
 // enforced in the service layer (src/server/services). A tenant is one

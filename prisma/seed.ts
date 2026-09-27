@@ -42,10 +42,10 @@ async function main() {
     })),
   });
 
-  const email = "demo@healthsweets.test";
+  const email = "demo@chatcart.test";
   let user = await db.user.findUnique({ where: { email } });
   if (!user) {
-    const tenant = await db.tenant.create({ data: { name: "HealthSweets Demo", slug: "demo", sellerDisplayName: "Sandile" } });
+    const tenant = await db.tenant.create({ data: { name: "Chatcart Demo", slug: "demo", sellerDisplayName: "Sandile" } });
     user = await db.user.create({ data: { tenantId: tenant.id, email, name: "Sandile Mokoena", passwordHash: await hashPassword("demo-password-123") } });
   }
   const tenantId = user.tenantId;
@@ -83,7 +83,7 @@ async function main() {
     if (!existing) await db.product.create({ data: { tenantId, name, priceCents, weightGrams, lengthCm: 20, widthCm: 12, heightCm: 6 } });
   }
 
-  console.log("Seeded demo shop: /shop/demo — seller login demo@healthsweets.test / demo-password-123");
+  console.log("Seeded demo shop: /shop/demo — seller login demo@chatcart.test / demo-password-123");
 }
 
 main()

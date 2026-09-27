@@ -5,12 +5,12 @@ import { PrismaClient, Prisma } from "@prisma/client";
 // acting tenant's id, and tests in services/*.test.ts assert cross-tenant
 // access fails.
 declare global {
-  var __shopDb: PrismaClient | undefined;
+  var __chatcartDb: PrismaClient | undefined;
 }
 
-export const db: PrismaClient = globalThis.__shopDb ?? new PrismaClient();
+export const db: PrismaClient = globalThis.__chatcartDb ?? new PrismaClient();
 
-if (process.env.NODE_ENV !== "production") globalThis.__shopDb = db;
+if (process.env.NODE_ENV !== "production") globalThis.__chatcartDb = db;
 
 export type DbClient = PrismaClient | Prisma.TransactionClient;
 export { Prisma };
