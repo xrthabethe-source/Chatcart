@@ -1,0 +1,17 @@
+import type { Metadata, Viewport } from "next";
+import "./globals.css";
+
+export const metadata: Metadata = {
+  title: "HealthSweets Shop",
+  description: "Order on WhatsApp or online. Collect at PEP / PAXI, courier to your door, same-day or collect from the seller.",
+};
+
+export const viewport: Viewport = { width: "device-width", initialScale: 1 };
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en-ZA">
+      <body>{children}</body>
+    </html>
+  );
+}

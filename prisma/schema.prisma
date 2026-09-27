@@ -1,0 +1,587 @@
+// HealthSweets Shop schema.
+//
+// Multi-tenancy: shared schema, `tenantId` on every tenant-owned table,
+// enforced in the service layer (src/server/services). A tenant is one
+// seller's shop.
+//
+// Delivery is provider-based (see src/server/delivery). Orders and carts
+// carry only generic delivery fields — delivery_method,
+// delivery_provider_id, delivery_service_code, delivery_location_id,
+// shipping_amount — never courier-specific columns. Anything a specific
+// courier needs lives on Shipment / ShipmentEvent / TenantDeliveryProvider
+// (in their JSON `providerData` / `config` columns), so adding a courier
+// never needs an orders migration.
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Tenancy and auth ─────────────────────────────────────────────────
+
+model Tenant {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  slug        String   @unique
+  // Order numbers are `${orderPrefix}-${sequence}`, e.g. SHS-1048.
+  orderPrefix String   @default("SHS") @map("order_prefix")
+  nextOrderNo Int      @default(1001) @map("next_order_no")
+  // Name used in customer-facing copy: "Collect from Sandile".
+  sellerDisplayName String? @map("seller_display_name")
+  // Meta Cloud API phone number id this shop's WhatsApp number maps to.
+  whatsappPhoneId   String? @unique @map("whatsapp_phone_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  users             User[]
+  products          Product[]
+  customers         Customer[]
+  carts             Cart[]
+  orders            Order[]
+  deliveryProviders TenantDeliveryProvider[]
+  deliveryQuotes    DeliveryQuote[]
+  shipments         Shipment[]
+  outboundMessages  OutboundMessage[]
+  conversations     Conversation[]
+
+  @@map("tenants")
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  email        String   @unique
+  name         String
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sessions Session[]
+
+  @@index([tenantId])
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  // SHA-256 of the cookie token; the raw token is never stored.
+  tokenHash String   @unique @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// ─── Catalogue ────────────────────────────────────────────────────────
+
+enum ShippingCategory {
+  STANDARD
+  FRAGILE
+  PERISHABLE
+  OVERSIZED
+}
+
+model Product {
+  id          String  @id @default(uuid()) @db.Uuid
+  tenantId    String  @map("tenant_id") @db.Uuid
+  name        String
+  sku         String?
+  description String?
+  priceCents  Int     @map("price_cents")
+  active      Boolean @default(true)
+  // Shipping information. All optional: when missing, the seller's
+  // default parcel for the provider is used instead (MVP packaging).
+  weightGrams      Int?             @map("weight_grams")
+  lengthCm         Int?             @map("length_cm")
+  widthCm          Int?             @map("width_cm")
+  heightCm         Int?             @map("height_cm")
+  shippingCategory ShippingCategory @default(STANDARD) @map("shipping_category")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+
+  @@unique([tenantId, sku])
+  @@index([tenantId, active])
+  @@map("products")
+}
+
+// ─── Customers and remembered delivery preferences ────────────────────
+
+enum DeliveryMethod {
+  PAXI_PICKUP       // "Collect at PEP / PAXI"
+  DOOR_COURIER      // "Courier to my door"
+  SAME_DAY          // "Same-day delivery"
+  SELLER_COLLECTION // "Collect from seller"
+}
+
+model Customer {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  name      String?
+  // E.164 without "+", e.g. 27821234567 — matches WhatsApp's wa_id.
+  phone     String
+  email     String?
+  // POPIA: delivery preferences are only remembered with consent. Cleared
+  // (and the remembered rows deleted) when the customer opts out.
+  rememberPreferences   Boolean         @default(false) @map("remember_preferences")
+  preferencesConsentAt  DateTime?       @map("preferences_consent_at")
+  preferredMethod       DeliveryMethod? @map("preferred_method")
+  lastPickupLocationId  String?         @map("last_pickup_location_id") @db.Uuid
+  lastAddressId         String?         @map("last_address_id") @db.Uuid
+  // SHA-256 of a random browser token, so a returning *web* customer can
+  // be recognised without exposing a customer's saved addresses to
+  // anyone who merely types their phone number.
+  webTokenHash          String?         @unique @map("web_token_hash")
+  createdAt             DateTime        @default(now()) @map("created_at")
+  updatedAt             DateTime        @updatedAt @map("updated_at")
+
+  tenant             Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lastPickupLocation DeliveryLocation? @relation(fields: [lastPickupLocationId], references: [id], onDelete: SetNull)
+  addresses          CustomerAddress[] @relation("CustomerAddresses")
+  carts              Cart[]
+  orders             Order[]
+
+  @@unique([tenantId, phone])
+  @@map("customers")
+}
+
+model CustomerAddress {
+  id            String    @id @default(uuid()) @db.Uuid
+  tenantId      String    @map("tenant_id") @db.Uuid
+  customerId    String    @map("customer_id") @db.Uuid
+  recipientName String?   @map("recipient_name")
+  phone         String?
+  street        String
+  complex       String?
+  suburb        String
+  city          String
+  province      String?
+  postcode      String
+  latitude      Float?
+  longitude     Float?
+  lastUsedAt    DateTime  @default(now()) @map("last_used_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  customer Customer @relation("CustomerAddresses", fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@map("customer_addresses")
+}
+
+// ─── Delivery providers ───────────────────────────────────────────────
+
+// Platform-level catalogue of courier integrations. `code` selects the
+// adapter in src/server/delivery/registry.ts; platform admins add a row
+// (plus an adapter) to introduce a new courier.
+model DeliveryProvider {
+  id                   String   @id @default(uuid()) @db.Uuid
+  code                 String   @unique // PAXI, COURIER_GUY, LOCAL_COURIER, OWN_DELIVERY, SELLER_COLLECTION
+  name                 String
+  // Capabilities as advertised by the adapter; kept here so the
+  // dashboard can render settings without instantiating adapters.
+  supportsPickupPoints Boolean  @default(false) @map("supports_pickup_points")
+  supportsDoorDelivery Boolean  @default(false) @map("supports_door_delivery")
+  supportsSameDay      Boolean  @default(false) @map("supports_same_day")
+  active               Boolean  @default(true)
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  tenantConfigs TenantDeliveryProvider[]
+  locations     DeliveryLocation[]
+  quotes        DeliveryQuote[]
+  shipments     Shipment[]
+  carts         Cart[]
+  orders        Order[]
+
+  @@map("delivery_providers")
+}
+
+enum ProviderMode {
+  INTEGRATED // live API: locations, rates, shipment creation, tracking
+  ASSISTED   // no API credentials yet: seller registers parcels manually
+}
+
+enum ShippingPricingMode {
+  EXACT               // customer pays the courier rate
+  RATE_PLUS_HANDLING  // courier rate + handling fee + optional % markup
+}
+
+model TenantDeliveryProvider {
+  id         String       @id @default(uuid()) @db.Uuid
+  tenantId   String       @map("tenant_id") @db.Uuid
+  providerId String       @map("provider_id") @db.Uuid
+  enabled    Boolean      @default(false)
+  // Which customer-facing methods this provider serves for this seller,
+  // e.g. The Courier Guy → [DOOR_COURIER, SAME_DAY].
+  methods    DeliveryMethod[]
+  mode       ProviderMode @default(ASSISTED)
+  // AES-256-GCM ciphertext of the provider credentials JSON (see
+  // src/server/delivery/credentials.ts). Never returned to clients.
+  credentialsEncrypted String? @map("credentials_encrypted")
+
+  pricingMode               ShippingPricingMode @default(EXACT) @map("pricing_mode")
+  handlingFeeCents          Int                 @default(0) @map("handling_fee_cents")
+  // Basis points: 1000 = 10%.
+  markupBps                 Int                 @default(0) @map("markup_bps")
+  freeShippingThresholdCents Int?               @map("free_shipping_threshold_cents")
+
+  // Dispatch / seller pickup address (also the collection point for
+  // SELLER_COLLECTION).
+  dispatchStreet    String? @map("dispatch_street")
+  dispatchSuburb    String? @map("dispatch_suburb")
+  dispatchCity      String? @map("dispatch_city")
+  dispatchProvince  String? @map("dispatch_province")
+  dispatchPostcode  String? @map("dispatch_postcode")
+  dispatchLatitude  Float?  @map("dispatch_latitude")
+  dispatchLongitude Float?  @map("dispatch_longitude")
+  dispatchContactName  String? @map("dispatch_contact_name")
+  dispatchContactPhone String? @map("dispatch_contact_phone")
+
+  defaultParcelLengthCm   Int @default(30) @map("default_parcel_length_cm")
+  defaultParcelWidthCm    Int @default(20) @map("default_parcel_width_cm")
+  defaultParcelHeightCm   Int @default(15) @map("default_parcel_height_cm")
+  defaultParcelWeightGrams Int @default(1000) @map("default_parcel_weight_grams")
+  handlingTimeDays        Int @default(1) @map("handling_time_days")
+
+  // Adapter-specific, non-secret settings (service code mappings, a
+  // seller-entered PAXI tariff for ASSISTED mode, own-delivery radius…).
+  // Validated by the adapter's own zod schema.
+  config Json @default("{}")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant   Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  provider DeliveryProvider @relation(fields: [providerId], references: [id])
+
+  @@unique([tenantId, providerId])
+  @@map("tenant_delivery_providers")
+}
+
+// Pickup-point directory (PAXI points, courier kiosks/lockers). Global,
+// not per tenant: a PEP store is the same place for every seller. Filled
+// from the provider API (INTEGRATED) or an imported directory (ASSISTED).
+model DeliveryLocation {
+  id           String   @id @default(uuid()) @db.Uuid
+  providerId   String   @map("provider_id") @db.Uuid
+  externalId   String   @map("external_id")   // provider's location_id
+  code         String?                          // provider's location_code (PAXI point code)
+  name         String                           // "PEP Jabulani Mall"
+  address      String?
+  suburb       String?
+  city         String?
+  province     String?
+  postcode     String?
+  latitude     Float?
+  longitude    Float?
+  kind         String   @default("PICKUP_POINT") // PICKUP_POINT, KIOSK, LOCKER
+  active       Boolean  @default(true)
+  lastSyncedAt DateTime @default(now()) @map("last_synced_at")
+
+  provider  DeliveryProvider @relation(fields: [providerId], references: [id])
+  customers Customer[]
+  carts     Cart[]
+  orders    Order[]
+
+  @@unique([providerId, externalId])
+  @@index([providerId, active])
+  @@map("delivery_locations")
+}
+
+// A priced delivery option shown to a customer. Carts point at the quote
+// they chose; the order copies the generic fields and the quote stays as
+// the audit trail of what the customer was promised.
+model DeliveryQuote {
+  id          String         @id @default(uuid()) @db.Uuid
+  tenantId    String         @map("tenant_id") @db.Uuid
+  cartId      String         @map("cart_id") @db.Uuid
+  providerId  String         @map("provider_id") @db.Uuid
+  method      DeliveryMethod
+  serviceCode String         @map("service_code")
+  serviceName String         @map("service_name") // customer-facing label, e.g. "Economy"
+  // What the courier charges the seller vs what the customer pays.
+  providerRateCents Int      @map("provider_rate_cents")
+  priceCents        Int      @map("price_cents")
+  etaMinDays  Int?           @map("eta_min_days")
+  etaMaxDays  Int?           @map("eta_max_days")
+  etaLabel    String?        @map("eta_label") // "2-4 working days", "Today"
+  deliveryLocationId String? @map("delivery_location_id") @db.Uuid
+  destination Json           // snapshot of the address/point that was quoted
+  providerData Json          @default("{}") @map("provider_data")
+  expiresAt   DateTime       @map("expires_at")
+  createdAt   DateTime       @default(now()) @map("created_at")
+
+  tenant   Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  cart     Cart             @relation("CartQuotes", fields: [cartId], references: [id], onDelete: Cascade)
+  provider DeliveryProvider @relation(fields: [providerId], references: [id])
+
+  @@index([cartId])
+  @@map("delivery_quotes")
+}
+
+// ─── Carts and orders ─────────────────────────────────────────────────
+
+enum Channel {
+  WEB
+  WHATSAPP
+}
+
+enum CartStatus {
+  OPEN
+  CHECKED_OUT
+  ABANDONED
+}
+
+model Cart {
+  id         String     @id @default(uuid()) @db.Uuid
+  tenantId   String     @map("tenant_id") @db.Uuid
+  customerId String?    @map("customer_id") @db.Uuid
+  channel    Channel
+  status     CartStatus @default(OPEN)
+
+  // Generic delivery selection — same shape as on Order.
+  deliveryMethod      DeliveryMethod? @map("delivery_method")
+  deliveryProviderId  String?         @map("delivery_provider_id") @db.Uuid
+  deliveryServiceCode String?         @map("delivery_service_code")
+  deliveryLocationId  String?         @map("delivery_location_id") @db.Uuid
+  deliveryAddressId   String?         @map("delivery_address_id") @db.Uuid
+  deliveryQuoteId     String?         @map("delivery_quote_id") @db.Uuid
+  shippingCents       Int?            @map("shipping_cents")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer         Customer?         @relation(fields: [customerId], references: [id])
+  deliveryProvider DeliveryProvider? @relation(fields: [deliveryProviderId], references: [id])
+  deliveryLocation DeliveryLocation? @relation(fields: [deliveryLocationId], references: [id])
+  items            CartItem[]
+  quotes           DeliveryQuote[]   @relation("CartQuotes")
+  order            Order?
+
+  @@index([tenantId, status])
+  @@map("carts")
+}
+
+model CartItem {
+  id        String @id @default(uuid()) @db.Uuid
+  cartId    String @map("cart_id") @db.Uuid
+  productId String @map("product_id") @db.Uuid
+  quantity  Int
+
+  cart    Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@unique([cartId, productId])
+  @@map("cart_items")
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  FULFILLING
+  SHIPPED
+  READY_FOR_COLLECTION
+  COMPLETED
+  CANCELLED
+}
+
+model Order {
+  id         String      @id @default(uuid()) @db.Uuid
+  tenantId   String      @map("tenant_id") @db.Uuid
+  number     String      // SHS-1048
+  customerId String      @map("customer_id") @db.Uuid
+  cartId     String?     @unique @map("cart_id") @db.Uuid
+  channel    Channel
+  status     OrderStatus @default(PENDING_PAYMENT)
+
+  subtotalCents Int @map("subtotal_cents")
+  shippingCents Int @map("shipping_cents") // shipping_amount
+  totalCents    Int @map("total_cents")
+
+  // Generic delivery fields only (see header comment).
+  deliveryMethod      DeliveryMethod @map("delivery_method")
+  deliveryProviderId  String         @map("delivery_provider_id") @db.Uuid
+  deliveryServiceCode String         @map("delivery_service_code")
+  deliveryLocationId  String?        @map("delivery_location_id") @db.Uuid
+  // Snapshot of where the parcel goes (street address or pickup point),
+  // frozen at checkout so later edits to a saved address or a re-synced
+  // PAXI directory never change a placed order's destination.
+  deliveryDestination Json           @map("delivery_destination")
+
+  paidAt      DateTime? @map("paid_at")
+  paymentRef  String?   @map("payment_ref")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer         Customer          @relation(fields: [customerId], references: [id])
+  cart             Cart?             @relation(fields: [cartId], references: [id])
+  deliveryProvider DeliveryProvider  @relation(fields: [deliveryProviderId], references: [id])
+  deliveryLocation DeliveryLocation? @relation(fields: [deliveryLocationId], references: [id])
+  items            OrderItem[]
+  shipments        Shipment[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status])
+  @@map("orders")
+}
+
+model OrderItem {
+  id             String @id @default(uuid()) @db.Uuid
+  orderId        String @map("order_id") @db.Uuid
+  productId      String @map("product_id") @db.Uuid
+  name           String
+  unitPriceCents Int    @map("unit_price_cents")
+  quantity       Int
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@map("order_items")
+}
+
+// ─── Shipments and tracking ───────────────────────────────────────────
+
+enum ShipmentStatus {
+  PENDING                // order not paid yet
+  READY_TO_BOOK          // paid; INTEGRATED provider, seller can create the shipment
+  READY_FOR_REGISTRATION // paid; ASSISTED provider, seller registers it on the provider portal
+  BOOKED                 // provider has a waybill/tracking reference
+  COLLECTED              // courier collected from seller / parcel dropped off
+  IN_TRANSIT
+  READY_FOR_COLLECTION   // at the PAXI point / seller's collection point
+  OUT_FOR_DELIVERY
+  DELIVERED              // delivered or collected by the customer
+  EXCEPTION
+  CANCELLED
+}
+
+model Shipment {
+  id          String         @id @default(uuid()) @db.Uuid
+  tenantId    String         @map("tenant_id") @db.Uuid
+  orderId     String         @map("order_id") @db.Uuid
+  providerId  String         @map("provider_id") @db.Uuid
+  mode        ProviderMode
+  status      ShipmentStatus @default(PENDING)
+  serviceCode String         @map("service_code")
+
+  trackingNumber      String?  @map("tracking_number")
+  trackingUrl         String?  @map("tracking_url")
+  providerShipmentRef String?  @map("provider_shipment_ref")
+  labelUrl            String?  @map("label_url")
+  expectedDeliveryAt  DateTime? @map("expected_delivery_at")
+
+  parcelLengthCm    Int @map("parcel_length_cm")
+  parcelWidthCm     Int @map("parcel_width_cm")
+  parcelHeightCm    Int @map("parcel_height_cm")
+  parcelWeightGrams Int @map("parcel_weight_grams")
+
+  destination  Json     // copy of Order.deliveryDestination
+  providerData Json     @default("{}") @map("provider_data")
+  bookedAt     DateTime? @map("booked_at")
+  deliveredAt  DateTime? @map("delivered_at")
+  lastTrackedAt DateTime? @map("last_tracked_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  tenant   Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  order    Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  provider DeliveryProvider @relation(fields: [providerId], references: [id])
+  events   ShipmentEvent[]
+
+  @@index([tenantId, status])
+  @@index([orderId])
+  @@map("shipments")
+}
+
+enum ShipmentEventSource {
+  PROVIDER // pulled from / pushed by the courier API
+  SELLER   // entered in the dashboard
+  SYSTEM
+}
+
+model ShipmentEvent {
+  id          String              @id @default(uuid()) @db.Uuid
+  shipmentId  String              @map("shipment_id") @db.Uuid
+  status      ShipmentStatus
+  description String
+  location    String?
+  occurredAt  DateTime            @map("occurred_at")
+  source      ShipmentEventSource
+  // Provider's own event id (or a hash of it) so re-polling the same
+  // tracking history never records — or notifies — an event twice.
+  dedupeKey   String              @map("dedupe_key")
+  createdAt   DateTime            @default(now()) @map("created_at")
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@unique([shipmentId, dedupeKey])
+  @@index([shipmentId, occurredAt])
+  @@map("shipment_events")
+}
+
+// ─── WhatsApp ─────────────────────────────────────────────────────────
+
+enum OutboundMessageStatus {
+  QUEUED
+  SENT
+  FAILED
+}
+
+// Outbox for customer notifications. `dedupeKey` makes each notification
+// (e.g. "shipment:<id>:IN_TRANSIT") send at most once however many times
+// tracking is polled.
+model OutboundMessage {
+  id         String                @id @default(uuid()) @db.Uuid
+  tenantId   String                @map("tenant_id") @db.Uuid
+  toPhone    String                @map("to_phone")
+  // Approved WhatsApp template name for business-initiated (outside the
+  // 24h window) transactional messages; body is the rendered fallback.
+  template   String
+  // Ordered values for the template's {{1}}, {{2}}… placeholders.
+  templateParams Json @default("[]") @map("template_params")
+  body       String
+  dedupeKey  String                @map("dedupe_key")
+  status     OutboundMessageStatus @default(QUEUED)
+  error      String?
+  sentAt     DateTime?             @map("sent_at")
+  createdAt  DateTime              @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, dedupeKey])
+  @@index([status])
+  @@map("outbound_messages")
+}
+
+// Per-customer WhatsApp ordering conversation state.
+model Conversation {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  phone     String
+  state     String   @default("IDLE")
+  cartId    String?  @map("cart_id") @db.Uuid
+  // Step-specific context: the numbered options last shown, so "2"
+  // resolves to the same PAXI point the customer saw.
+  context   Json     @default("{}")
+  // Last message *from* the customer: free-form replies are allowed for
+  // 24h after it; outside that, notifications must use templates.
+  lastInboundAt DateTime? @map("last_inbound_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, phone])
+  @@map("conversations")
+}
