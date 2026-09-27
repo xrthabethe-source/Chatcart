@@ -15,7 +15,7 @@ after(async () => {
 const PAXI = { enabled: true, mode: "ASSISTED" as const, config: { tariff: [{ serviceCode: "STD", name: "Standard", rateCents: 5995, etaMinDays: 7, etaMaxDays: 9 }] } };
 
 test("WhatsApp: order → PEP/PAXI → pay → track → repeat purchase in a few taps", async () => {
-  const run = await seedPaxiPoints();
+  const { run } = await seedPaxiPoints();
   const { tenant, user } = await createSeller("wa");
   await configureProvider(user, "PAXI", PAXI);
   await configureProvider(user, "SELLER_COLLECTION", { enabled: true });

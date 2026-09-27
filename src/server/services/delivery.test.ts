@@ -25,7 +25,7 @@ after(async () => {
 const PAXI_TARIFF = { tariff: [{ serviceCode: "STD", name: "Standard", rateCents: 5995, etaMinDays: 7, etaMaxDays: 9 }] };
 
 test("PAXI assisted mode: select a point, order, register on the portal, notify", async () => {
-  const run = await seedPaxiPoints();
+  const { run, postcode } = await seedPaxiPoints();
   const { tenant, user } = await createSeller("paxi");
   await configureProvider(user, "PAXI", { enabled: true, mode: "ASSISTED", config: PAXI_TARIFF });
   const product = await addProduct(user, "Product A", 40_000);
@@ -40,7 +40,7 @@ test("PAXI assisted mode: select a point, order, register on the portal, notify"
   // Nearest first: Jabulani (~0.7 km), Maponya (~3 km), Tembisa (~45 km).
   assert.deepEqual(mine.map((p) => p.name), [`PEP Jabulani Mall ${run}`, `PEP Maponya Mall ${run}`, `PEP Tembisa Mall ${run}`]);
   assert.match(mine[0]!.distanceLabel!, /km away|m away/);
-  const byPostcode = await searchPickupPoints(tenant.id, { text: "1809", limit: 20 });
+  const byPostcode = await searchPickupPoints(tenant.id, { text: postcode, limit: 20 });
   assert.ok(byPostcode.some((p) => p.name === `PEP Maponya Mall ${run}`));
 
   const cart = await createCart(tenant.id, "WEB");
@@ -102,7 +102,7 @@ test("PAXI assisted mode: select a point, order, register on the portal, notify"
 });
 
 test("preferences are not remembered without consent", async () => {
-  const run = await seedPaxiPoints();
+  const { run } = await seedPaxiPoints();
   const { tenant, user } = await createSeller("noconsent");
   await configureProvider(user, "PAXI", { enabled: true, mode: "ASSISTED", config: PAXI_TARIFF });
   const product = await addProduct(user, "Product A", 10_000);

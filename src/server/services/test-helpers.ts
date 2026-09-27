@@ -44,15 +44,18 @@ export async function configureProvider(user: Awaited<ReturnType<typeof createSe
 export async function seedPaxiPoints() {
   await ensureDeliveryProviderCatalogue();
   const run = randomUUID().slice(0, 8);
+  // Random postcode per run: earlier runs leave identical points behind,
+  // and a shared postcode would let them crowd this run out of results.
+  const postcode = String(1000 + Math.floor(Math.random() * 9000));
   await importLocations({
     providerCode: "PAXI",
     locations: [
       { externalId: `JAB-${run}`, code: `P${run}1`, name: `PEP Jabulani Mall ${run}`, suburb: "Jabulani", city: "Soweto", province: "Gauteng", postcode: "1868", latitude: -26.2485, longitude: 27.8514 },
-      { externalId: `MAP-${run}`, code: `P${run}2`, name: `PEP Maponya Mall ${run}`, suburb: "Pimville", city: "Soweto", province: "Gauteng", postcode: "1809", latitude: -26.2614, longitude: 27.8845 },
+      { externalId: `MAP-${run}`, code: `P${run}2`, name: `PEP Maponya Mall ${run}`, suburb: "Pimville", city: "Soweto", province: "Gauteng", postcode, latitude: -26.2614, longitude: 27.8845 },
       { externalId: `TEM-${run}`, code: `P${run}3`, name: `PEP Tembisa Mall ${run}`, suburb: `Tembisa${run}`, city: "Tembisa", province: "Gauteng", postcode: "1632", latitude: -25.9963, longitude: 28.2268 },
     ],
   });
-  return run;
+  return { run, postcode };
 }
 
 export async function addProduct(user: Awaited<ReturnType<typeof createSeller>>["user"], name: string, priceCents: number) {
