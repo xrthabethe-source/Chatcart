@@ -7,10 +7,12 @@ interface Props {
   shareText: string;
   whatsappShareUrl: string;
   steps: { products: boolean; delivery: boolean; payments: boolean };
+  whatsappConnected?: boolean;
+  whatsappConnectAvailable?: boolean;
 }
 
 // Top of the orders page: finish setup, then share the shop.
-export function ShareCard({ shopUrl, shareText, whatsappShareUrl, steps }: Props) {
+export function ShareCard({ shopUrl, shareText, whatsappShareUrl, steps, whatsappConnected, whatsappConnectAvailable }: Props) {
   const [copied, setCopied] = useState(false);
   const todo = [
     !steps.products && "choose your products",
@@ -49,6 +51,11 @@ export function ShareCard({ shopUrl, shareText, whatsappShareUrl, steps }: Props
           {copied ? "Copied ✓" : "Copy status message"}
         </button>
       </div>
+      {whatsappConnectAvailable && !whatsappConnected && (
+        <div className="small">
+          📲 Send order updates from your own number: <Link href="/dashboard/settings#whatsapp">Connect my WhatsApp</Link>
+        </div>
+      )}
     </div>
   );
 }

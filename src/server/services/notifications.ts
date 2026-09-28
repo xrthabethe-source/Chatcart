@@ -13,6 +13,7 @@ import { deliveryLine, fillTemplate, shipmentTemplate, WHATSAPP_TEMPLATES, type 
 import { rands } from "../delivery/pricing.ts";
 import { NOTIFY_ON } from "../delivery/status.ts";
 import type { Destination, ShipmentStatus } from "../delivery/types.ts";
+import { shopWhatsAppToken } from "./whatsapp-connect.ts";
 import { getWhatsAppSender } from "./whatsapp-sender.ts";
 import type { Prisma } from "@prisma/client";
 
@@ -140,6 +141,7 @@ export async function dispatchOutbox(tenantId?: string, limit = 50, now = new Da
     try {
       await sender.send({
         phoneNumberId: ownNumber ?? process.env.WHATSAPP_PLATFORM_PHONE_ID ?? null,
+        accessToken: ownNumber ? shopWhatsAppToken(message.tenant) : null,
         to: message.toPhone,
         body: message.body,
         template: message.template,

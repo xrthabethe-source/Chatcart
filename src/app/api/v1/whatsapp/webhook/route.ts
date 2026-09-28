@@ -3,6 +3,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { db } from "@/server/db";
 import { handleWhatsAppMessage, type InboundMessage } from "@/server/services/whatsapp-flow";
 import { getWhatsAppSender } from "@/server/services/whatsapp-sender";
+import { shopWhatsAppToken } from "@/server/services/whatsapp-connect";
 
 // Meta Cloud API webhook.
 // GET  — one-time verification handshake (WHATSAPP_META_VERIFY_TOKEN).
@@ -64,8 +65,17 @@ export async function POST(request: NextRequest) {
           location: m.location ? { latitude: m.location.latitude, longitude: m.location.longitude } : null,
         };
         try {
-          const reply = await handleWhatsAppMessage(tenant.id, inbound);
-          await sender.send({ phoneNumberId, to: m.from, body: reply.text, template: "", templateParams: [], withinServiceWindow: true });
+          const reply = await handleWhatsAppMessage(tenant.id, inbound, new Date(), { quietUnlessShopping: tenant.whatsappCoexistence });
+          if (!reply) continue; // the seller answers this one themselves
+          await sender.send({
+            phoneNumberId,
+            accessToken: shopWhatsAppToken(tenant),
+            to: m.from,
+            body: reply.text,
+            template: "",
+            templateParams: [],
+            withinServiceWindow: true,
+          });
         } catch (error) {
           console.error("WhatsApp message handling failed:", error);
         }

@@ -36,6 +36,15 @@ model Tenant {
   // Meta Cloud API phone number id this shop's WhatsApp number maps to
   // (set once the seller connects their own number to the API).
   whatsappPhoneId   String? @unique @map("whatsapp_phone_id")
+  // Set by "Connect my WhatsApp" (Meta Embedded Signup): the seller's
+  // WhatsApp Business Account, the business token Meta issued for it
+  // (AES-GCM encrypted), and whether the number stays on the WhatsApp
+  // Business app alongside the API ("coexistence").
+  whatsappBusinessAccountId      String?   @map("whatsapp_business_account_id")
+  whatsappAccessTokenEncrypted   String?   @map("whatsapp_access_token_encrypted")
+  whatsappDisplayNumber          String?   @map("whatsapp_display_number")
+  whatsappCoexistence            Boolean   @default(false) @map("whatsapp_coexistence")
+  whatsappConnectedAt            DateTime? @map("whatsapp_connected_at")
   // The seller's own WhatsApp number (27XXXXXXXXX). Before their number
   // is connected to the API, customers reach them through wa.me links to
   // this number, and new-order alerts are sent to it.

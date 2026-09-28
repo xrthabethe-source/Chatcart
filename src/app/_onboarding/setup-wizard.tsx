@@ -29,6 +29,8 @@ interface Status {
   yocoConnected: boolean;
   paxiAvailable: boolean;
   paxiFromCents: number | null;
+  whatsappConnected: boolean;
+  whatsappConnectAvailable: boolean;
 }
 
 export function SetupWizard({ token, invitedName, startAt }: { token?: string; invitedName?: string | null; startAt: Step }) {
@@ -340,6 +342,13 @@ function DoneStep({ status }: { status: Status | null }) {
         </button>
         <pre className="copy">{status.shareText}</pre>
       </div>
+      {status.whatsappConnectAvailable && !status.whatsappConnected && (
+        <div className="card stack">
+          <strong>📲 Optional: use your own WhatsApp number</strong>
+          <span className="small muted">Order updates come from the Chatcart number for now. Connect your WhatsApp Business number any time (about 5 minutes).</span>
+          <div><button className="btn btn-sm" onClick={() => router.push("/dashboard/settings#whatsapp")}>Connect my WhatsApp</button></div>
+        </div>
+      )}
       {!status.steps.products && <div className="alert alert-warn small">You haven&apos;t chosen any products yet. Add them from Products in your dashboard.</div>}
       <button className="btn btn-block" onClick={() => { router.push("/dashboard/orders"); router.refresh(); }}>Go to my orders</button>
     </section>

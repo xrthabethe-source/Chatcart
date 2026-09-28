@@ -111,6 +111,35 @@ Delivery updates such as "ready for collection" often arrive days after the cust
 
 If a template isn't approved yet, Meta rejects that message. The dashboard still works; the customer just doesn't get that particular update.
 
+### 2.7 Let associates connect their own number ("Connect my WhatsApp")
+
+This is a one-time setup by you, the platform owner. After it, any associate can tap **Connect my WhatsApp** in **Shop settings**, log in with Facebook, pick their WhatsApp Business number, and confirm in the WhatsApp Business app. They keep using the app on their phone ("coexistence"). Order updates then come from their own number.
+
+1. **Business verification** (Business settings → Security centre) must be approved first.
+2. **Become a Tech Provider.** In your Meta app's dashboard, follow **WhatsApp → Quickstart → Become a Tech Provider**. Meta reviews your app for `whatsapp_business_management` and `whatsapp_business_messaging` (advanced access). Their review asks for a short screen recording of the Connect button in use, from Shop settings. Allow a few days.
+3. **Add Facebook Login for Business** to the app. Under **Configurations**, create one from the **WhatsApp Embedded Signup** template, choosing the option that lets businesses onboard their **WhatsApp Business app** number if Meta offers it for your region.
+4. In **Facebook Login for Business → Settings**, turn on **Login with the JavaScript SDK**, and add your app URL's domain to **Allowed domains for the JavaScript SDK** (and to **App domains** under App settings → Basic).
+5. Add these Railway variables to the web service and redeploy:
+
+| Variable | Where it comes from |
+|---|---|
+| `META_APP_ID` | Meta app → App settings → Basic → App ID |
+| `META_EMBEDDED_SIGNUP_CONFIG_ID` | Facebook Login for Business → Configurations → your configuration's ID |
+
+The webhook from 2.4 already covers connected associates' numbers: connecting subscribes your app to their account automatically.
+
+What happens when an associate connects:
+
+- Chatcart checks with Meta that the number really belongs to the account they logged in with. The browser can't pick someone else's number, and a number already on another shop is refused.
+- Chatcart submits the delivery-update templates from [whatsapp-templates.md](whatsapp-templates.md) to **their** account. Approval status shows in their Shop settings.
+- **On a number that stays on the WhatsApp Business app**, the ordering bot only replies when a customer is ordering or tracking: a product and quantity, "menu", "order", "track", or replies during an order. Everything else is left for the associate to answer in their app.
+- **Meta bills the associate's WhatsApp account** for delivery-update templates sent outside the 24-hour window. They add a payment method in WhatsApp Manager. Decide whether Chatcart covers this or passes it on.
+
+Things to confirm with a real test number before inviting associates:
+- Coexistence availability in South Africa for your account.
+- That the templates are approved on a connected account.
+- A full round trip: order on WhatsApp, reply, delivery update.
+
 ## 3. Test, then go live
 
 1. From your personal phone, send "I want 2 Product A" to the business number.

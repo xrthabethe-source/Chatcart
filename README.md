@@ -29,6 +29,8 @@ How it works before their own number is connected to WhatsApp's API ("share-link
 - **After ordering:** customers can tap "Send your order to Sandile on WhatsApp".
 - **Order and delivery updates:** these come from the shared Chatcart number (`WHATSAPP_PLATFORM_PHONE_ID`), with the shop's name in every message. The associate gets a WhatsApp alert for each paid order.
 
+**Their own number, when they're ready.** **Shop settings → Connect my WhatsApp** runs Meta's Embedded Signup: log in with Facebook, pick the WhatsApp Business number, confirm in the app. It's about 5 minutes and they keep using the app on their phone. From then on, updates come from their number, their account's templates are submitted automatically, and on coexistence numbers the bot only answers customers who are ordering or tracking. It needs your one-time Tech Provider setup: [docs/deploy.md §2.7](docs/deploy.md). The Graph API calls (`src/server/whatsapp/meta-graph.ts`) follow Meta's documented flow and are tested against recorded responses; verify with a real test number first.
+
 **Payments.** Card payments go through **the associate's own Yoco account**, so money goes straight to them and Chatcart never holds funds. When an associate connects Yoco, Chatcart registers a webhook on their Yoco account. Orders are marked paid only by a correctly signed `payment.succeeded` event for the exact order amount. The Yoco client (`src/server/payments/yoco.ts`) follows Yoco's published Checkout API and is tested against recorded responses. **Check it once with a test key (`sk_test_…`) before going live.**
 
 **Before inviting associates**, as platform admin (your email in `PLATFORM_ADMIN_EMAILS`):

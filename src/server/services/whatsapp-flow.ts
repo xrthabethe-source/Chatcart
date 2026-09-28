@@ -86,7 +86,23 @@ const SHORT_METHOD_LABEL: Record<DeliveryMethod, string> = {
   SELLER_COLLECTION: "Collect from seller",
 };
 
-export async function handleWhatsAppMessage(tenantId: string, message: InboundMessage, now = new Date()): Promise<WhatsAppReply> {
+export interface FlowOptions {
+  /**
+   * For numbers that stay on the seller's WhatsApp Business app
+   * (coexistence): every chat reaches us, including people just talking
+   * to the seller. Stay silent unless the customer is clearly ordering,
+   * tracking, or already mid-order — the seller answers the rest.
+   */
+  quietUnlessShopping?: boolean;
+}
+
+/** Returns null when the bot should stay silent. */
+export async function handleWhatsAppMessage(
+  tenantId: string,
+  message: InboundMessage,
+  now = new Date(),
+  options: FlowOptions = {},
+): Promise<WhatsAppReply | null> {
   const phone = normalisePhone(message.phone);
   const convo = await db.conversation.upsert({
     where: { tenantId_phone: { tenantId, phone } },
@@ -94,7 +110,8 @@ export async function handleWhatsAppMessage(tenantId: string, message: InboundMe
     create: { tenantId, phone, lastInboundAt: now },
   });
   const flow = new Flow(tenantId, phone, message, convo.state as State, (convo.context ?? {}) as Context, convo.cartId, now);
-  let reply: WhatsAppReply;
+  flow.quiet = !!options.quietUnlessShopping;
+  let reply: WhatsAppReply | null;
   try {
     reply = await flow.run();
   } catch (error) {
@@ -116,6 +133,7 @@ class Flow {
   state: State;
   context: Context;
   cartId: string | null;
+  quiet = false;
 
   constructor(tenantId: string, phone: string, msg: InboundMessage, state: State, context: Context, cartId: string | null, now: Date) {
     this.tenantId = tenantId;
@@ -141,8 +159,9 @@ class Flow {
     return options.find((o) => o.title.toLowerCase() === t)?.id ?? null;
   }
 
-  async run(): Promise<WhatsAppReply> {
+  async run(): Promise<WhatsAppReply | null> {
     const t = this.text.toLowerCase();
+    const idle = this.state === "IDLE";
 
     if (/^(track|track my order|where is my order\??)$/.test(t) || this.msg.optionId === "track") return this.track();
     if (t === "forget" || t === "forget me") {
@@ -150,7 +169,7 @@ class Flow {
       if (customer) await forgetPreferences(this.tenantId, customer.id);
       return { text: "Done — we've forgotten your saved delivery details. We'll ask each time from now on." };
     }
-    if (t === "cancel" || t === "restart") {
+    if ((t === "cancel" || t === "restart") && !(this.quiet && idle)) {
       this.reset();
       return { text: "No problem, I've cleared that. Send what you'd like to order any time, or TRACK to track an order." };
     }
@@ -175,6 +194,7 @@ class Flow {
       case "CONFIRM":
         return this.onConfirm();
       default:
+        if (this.quiet && !/^(menu|order|shop|products?|catalogue|price ?list)\b/.test(t) && this.msg.optionId !== "menu") return null;
         return this.greeting();
     }
   }

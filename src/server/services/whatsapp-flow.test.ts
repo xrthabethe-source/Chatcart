@@ -7,6 +7,13 @@ import { enterTrackingReference, getOrderDetail } from "./shipments.ts";
 import { addProduct, configureProvider, createSeller, fakeFetch, seedPaxiPoints } from "./test-helpers.ts";
 import { handleWhatsAppMessage, parseAddress } from "./whatsapp-flow.ts";
 
+/** The flow must reply (not stay silent) in these tests. */
+async function hw(...args: Parameters<typeof handleWhatsAppMessage>) {
+  const reply = await handleWhatsAppMessage(...args);
+  assert.ok(reply, "expected a reply");
+  return reply!;
+}
+
 after(async () => {
   setDeliveryFetchForTests(null);
   await db.$disconnect();
@@ -21,7 +28,7 @@ test("WhatsApp: order → PEP/PAXI → pay → track → repeat purchase in a fe
   await configureProvider(user, "SELLER_COLLECTION", { enabled: true });
   await addProduct(user, "Product A", 40_000);
   const phone = "27821234567";
-  const say = (text: string, extra: object = {}) => handleWhatsAppMessage(tenant.id, { phone, profileName: "Thandi", text, ...extra });
+  const say = (text: string, extra: object = {}) => hw(tenant.id, { phone, profileName: "Thandi", text, ...extra });
 
   let reply = await say("I want 2 Product A");
   assert.match(reply.text, /^Added ✓ 2 × Product A\n\nHow would you like to receive your order\?/);
@@ -60,7 +67,7 @@ test("WhatsApp: order → PEP/PAXI → pay → track → repeat purchase in a fe
   // Repeat purchase: remembered PAXI point, two taps to the total.
   reply = await say("1 Product A");
   assert.match(reply.text, new RegExp(`Last time you collected at:\\nPEP Tembisa Mall ${run}\\n\\nUse it again\\?`));
-  reply = await handleWhatsAppMessage(tenant.id, { phone, optionId: "yes" });
+  reply = await hw(tenant.id, { phone, optionId: "yes" });
   assert.match(reply.text, /Products R400\nPAXI R59.95\nTOTAL R459.95/);
 
   // FORGET removes remembered details.
@@ -87,7 +94,7 @@ test("WhatsApp: same-day unavailable offers standard courier / PAXI, reusing the
     fakeFetch({ "/v2/rates": { rates: [{ rate: 99, service_level: { code: "ECO", name: "Economy", ...future } }] } }).fetch,
   );
   const phone = "27830000001";
-  const say = (text: string) => handleWhatsAppMessage(tenant.id, { phone, text });
+  const say = (text: string) => hw(tenant.id, { phone, text });
 
   let reply = await say("3 honey sticks");
   const titles = reply.options!.map((o) => o.title);
@@ -113,6 +120,24 @@ test("address parsing", () => {
 
 test("WhatsApp: a shop with no products yet says so instead of an empty list", async () => {
   const { tenant } = await createSeller("wa-empty");
-  const reply = await handleWhatsAppMessage(tenant.id, { phone: "27830000009", text: "hi" });
+  const reply = await hw(tenant.id, { phone: "27830000009", text: "hi" });
   assert.match(reply.text, /still adding our products/);
+});
+
+test("WhatsApp coexistence: silent for ordinary chats, answers shoppers", async () => {
+  const { tenant, user } = await createSeller("wa-quiet");
+  await configureProvider(user, "SELLER_COLLECTION", { enabled: true });
+  await addProduct(user, "Honey Sticks", 5000);
+  const quiet = { quietUnlessShopping: true };
+  const msg = (text: string) => handleWhatsAppMessage(tenant.id, { phone: "27830000077", text }, new Date(), quiet);
+
+  assert.equal(await msg("Hi Sandile, are we still meeting tomorrow?"), null);
+  assert.equal(await msg("hi"), null);
+  assert.equal(await msg("cancel"), null);
+  assert.match((await msg("menu"))!.text, /Welcome to/);
+  const added = await msg("2 honey sticks");
+  assert.match(added!.text, /Added ✓ 2 × Honey Sticks/);
+  // Mid-order, plain replies are answered.
+  assert.match((await msg("1"))!.text, /Collect from the seller|TOTAL/);
+  assert.match((await msg("Track"))!.text, /I couldn't find any orders|Order/);
 });

@@ -2,6 +2,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "../../_lib/format";
+import { ConnectWhatsApp } from "../_components/connect-whatsapp";
 
 interface Settings {
   name: string;
@@ -17,7 +18,17 @@ interface Settings {
   whatsappConfigured: boolean;
 }
 
-export function ShopSettingsForm({ initial }: { initial: Settings }) {
+interface Connect {
+  available: boolean;
+  appId: string;
+  configId: string;
+  connected: boolean;
+  displayNumber: string | null;
+  coexistence: boolean;
+  templates: { approved: number; pending: number; rejected: number; total: number } | null;
+}
+
+export function ShopSettingsForm({ initial, connect }: { initial: Settings; connect?: Connect }) {
   const router = useRouter();
   const [status, setStatus] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -72,23 +83,36 @@ export function ShopSettingsForm({ initial }: { initial: Settings }) {
           <input id="s-wanum" name="whatsappNumber" inputMode="tel" defaultValue={initial.whatsappNumber ? `0${initial.whatsappNumber.slice(2)}` : ""} placeholder="082 123 4567" />
           <p className="small muted">Customers tap “Chat with you” to reach this number, and new paid orders are sent to it.</p>
         </div>
-        {!initial.whatsappConfigured && (
-          <div className="alert alert-warn small">WhatsApp isn&apos;t connected on this platform yet (the Meta access token and app secret aren&apos;t set), so messages are only logged.</div>
-        )}
-        {initial.canLinkWhatsApp ? (
-          <div>
-            <label htmlFor="s-wa">WhatsApp phone number ID</label>
-            <input id="s-wa" name="whatsappPhoneId" inputMode="numeric" defaultValue={initial.whatsappPhoneId ?? ""} placeholder="e.g. 106540352242922" />
-            <p className="small muted">From Meta: WhatsApp → API Setup → “Phone number ID” (not the phone number itself). Leave empty to unlink.</p>
-          </div>
-        ) : initial.whatsappPhoneId ? (
-          <p>✓ A WhatsApp number is linked to this shop.</p>
-        ) : (
-          <p className="muted">No WhatsApp number linked yet. The platform administrator links it for you.</p>
+        {initial.canLinkWhatsApp && (
+          <details>
+            <summary className="small">Advanced (platform admin): link a number by its phone number ID</summary>
+            <div style={{ marginTop: 8 }}>
+              <label htmlFor="s-wa">WhatsApp phone number ID</label>
+              <input id="s-wa" name="whatsappPhoneId" inputMode="numeric" defaultValue={initial.whatsappPhoneId ?? ""} placeholder="e.g. 106540352242922" />
+              <p className="small muted">Only for numbers on the platform&apos;s own WhatsApp account. Sellers should use “Connect my WhatsApp” below instead. Leave empty to unlink.</p>
+            </div>
+          </details>
         )}
       </section>
       <div><button className="btn btn-primary" disabled={busy}>{busy ? "Saving…" : "Save"}</button></div>
     </form>
+    <section className="card stack" id="whatsapp" aria-labelledby="wa-h">
+      <h2 id="wa-h">Send updates from your own WhatsApp</h2>
+      {connect ? (
+        connect.available || connect.connected ? (
+          <ConnectWhatsApp
+            appId={connect.appId}
+            configId={connect.configId}
+            connected={connect.connected}
+            displayNumber={connect.displayNumber}
+            coexistence={connect.coexistence}
+            templates={connect.templates}
+          />
+        ) : (
+          <p className="small muted">Coming soon. Until then, order updates reach your customers from the Chatcart WhatsApp number, with your shop&apos;s name.</p>
+        )
+      ) : null}
+    </section>
     <PaymentsSection initial={initial} />
     </>
   );

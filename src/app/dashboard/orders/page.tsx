@@ -25,7 +25,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
 
   return (
     <main className="container stack">
-      <ShareCard shopUrl={onboarding.shopUrl} shareText={onboarding.shareText} whatsappShareUrl={onboarding.whatsappShareUrl} steps={onboarding.steps} />
+      <ShareCard shopUrl={onboarding.shopUrl} shareText={onboarding.shareText} whatsappShareUrl={onboarding.whatsappShareUrl} steps={onboarding.steps} whatsappConnected={onboarding.whatsappConnected} whatsappConnectAvailable={onboarding.whatsappConnectAvailable} />
       <div className="spread">
         <h1>Orders</h1>
         {tab.key === "paxi" && orders.length > 0 && (

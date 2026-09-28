@@ -11,6 +11,9 @@
 // named template with its ordered parameters.
 export interface OutboundWhatsApp {
   phoneNumberId: string | null;
+  /** The shop's own business token when sending from its own number;
+   * omitted for the shared Chatcart number (platform token). */
+  accessToken?: string | null;
   to: string;
   body: string;
   template: string;
@@ -57,7 +60,7 @@ export class MetaWhatsAppSender implements WhatsAppSender {
         };
     const response = await fetch(`https://graph.facebook.com/${this.apiVersion}/${message.phoneNumberId}/messages`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
+      headers: { Authorization: `Bearer ${message.accessToken || this.token}`, "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
     if (!response.ok) throw new Error(`WhatsApp send failed: HTTP ${response.status} ${await response.text()}`);
@@ -74,11 +77,15 @@ export function setWhatsAppSenderForTests(sender: WhatsAppSender | null) {
 export function getWhatsAppSender(): WhatsAppSender {
   if (override) return override;
   if (!cached) {
-    const token = process.env.WHATSAPP_META_ACCESS_TOKEN;
+    const token = process.env.WHATSAPP_META_ACCESS_TOKEN ?? "";
     // Must match the language the templates were approved in (Meta's
     // code, e.g. "en" or "en_US").
     const language = process.env.WHATSAPP_TEMPLATE_LANGUAGE || "en";
-    cached = token ? new MetaWhatsAppSender(token, "v21.0", language) : new ConsoleWhatsAppSender();
+    const meta = new MetaWhatsAppSender(token, "v21.0", language);
+    const log = new ConsoleWhatsAppSender();
+    // A connected shop sends with its own token even when the platform
+    // has no shared number configured; otherwise messages are logged.
+    cached = { send: (m) => (m.accessToken || token ? meta.send(m) : log.send(m)) };
   }
   return cached;
 }

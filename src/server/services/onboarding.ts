@@ -9,6 +9,7 @@ import { listDeliverySettings, updateDeliveryProvider } from "./delivery-setting
 import { ValidationError, zodMessage } from "./errors.ts";
 import { appBaseUrl } from "./invites.ts";
 import { getDefaultPaxiTariff } from "./platform-settings.ts";
+import { whatsappConnectConfig } from "./whatsapp-connect.ts";
 
 export const quickDeliverySchema = z.object({
   street: z.string().trim().min(3, "Enter your street address.").max(200),
@@ -100,5 +101,7 @@ export async function getOnboardingStatus(user: AuthenticatedUser) {
     paxiFromCents: paxiTariff ? Math.min(...paxiTariff.map((t) => t.rateCents)) : null,
     whatsappNumber: tenant.whatsappNumber,
     whatsappConnected: !!tenant.whatsappPhoneId,
+    // "Connect my WhatsApp" is offered once the platform has it set up.
+    whatsappConnectAvailable: whatsappConnectConfig().enabled,
   };
 }
