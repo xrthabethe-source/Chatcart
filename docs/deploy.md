@@ -51,12 +51,12 @@ This job checks couriers for tracking updates and sends any queued WhatsApp mess
 
 The job's logs should show `Tracking sync OK` every 15 minutes.
 
-### 1.4 Create your shop
+### 1.4 Set up the platform and invite associates
 
-1. Open your app URL and click **Open a shop**. Register with the email you put in `PLATFORM_ADMIN_EMAILS`.
-2. Under **Products**, add your products.
-3. Under **Delivery settings**, switch on the options you offer. For PEP / PAXI in assisted mode, enter your PAXI prices.
-4. **Load the real PAXI Point list** before customers use PEP / PAXI. The seed script's `DEMO-*` points are samples. As a platform admin, `POST /api/v1/admin/delivery-locations/import` with `{ "providerCode": "PAXI", "locations": [ … ] }` (fields are listed in `src/server/services/locations.ts`).
+1. Open your app URL and click **Open a shop**. Register with the email you put in `PLATFORM_ADMIN_EMAILS`. That makes you the platform admin.
+2. Under **Admin**, upload the product catalogue CSV and save the default PEP / PAXI prices.
+3. **Load the real PAXI Point list** before customers use PEP / PAXI. The seed script's `DEMO-*` points are samples. As a platform admin, `POST /api/v1/admin/delivery-locations/import` with `{ "providerCode": "PAXI", "locations": [ … ] }` (fields are listed in `src/server/services/locations.ts`).
+4. Under **Admin → Invite an associate**, create a link and send it on WhatsApp. They set up their own shop in about 5 minutes.
 
 ## 2. Connect WhatsApp (Meta)
 
@@ -86,6 +86,7 @@ Add these to the Chatcart web service's variables in Railway:
 | `WHATSAPP_META_APP_SECRET` | Meta app → **App settings → Basic → App secret** |
 | `WHATSAPP_META_VERIFY_TOKEN` | a word you make up, e.g. `chatcart-verify-7391`. You'll enter the same word in Meta next. |
 | `WHATSAPP_TEMPLATE_LANGUAGE` | `en`, or whatever language code your templates are approved in (see 2.6) |
+| `WHATSAPP_PLATFORM_PHONE_ID` | the Phone number ID of **your shared Chatcart number**. Associates who haven't connected their own number get their customer updates and new-order alerts from this number. |
 
 Wait for Railway to redeploy.
 
@@ -96,7 +97,9 @@ Wait for Railway to redeploy.
 3. Set **Verify token** to the word you chose for `WHATSAPP_META_VERIFY_TOKEN`, then click **Verify and save**. If this fails, the app hasn't redeployed yet or the two words don't match.
 4. Under **Webhook fields**, subscribe to **messages**.
 
-### 2.5 Link the number to your shop
+### 2.5 Link a number to a specific shop (optional)
+
+Skip this for associates in share-link mode: they don't need their own number connected.
 
 In Chatcart, open **Shop settings**. Paste the **Phone number ID** from 2.1 into **WhatsApp phone number ID** and save. The app checks the ID with Meta and shows the phone number it belongs to.
 

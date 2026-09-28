@@ -83,6 +83,7 @@ test("shipment status only moves forward, except problems", () => {
 
 test("tracking summary matches the WhatsApp copy", () => {
   const text = renderTrackingSummary({
+    shopName: "Sandile's Shop",
     orderNumber: "SHS-1048",
     providerCode: "PAXI",
     providerName: "PEP / PAXI",

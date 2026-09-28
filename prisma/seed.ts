@@ -12,6 +12,8 @@ import { db } from "../src/server/db.ts";
 import { hashPassword } from "../src/server/services/auth.ts";
 import { ensureDeliveryProviderCatalogue, ensureTenantDeliveryProviders } from "../src/server/services/delivery-catalogue.ts";
 import { importLocations } from "../src/server/services/locations.ts";
+import { importMasterCatalogue } from "../src/server/services/catalogue.ts";
+import { setDefaultPaxiTariff } from "../src/server/services/platform-settings.ts";
 import type { Prisma } from "@prisma/client";
 
 const SAMPLE_POINTS = [
@@ -82,6 +84,18 @@ async function main() {
     const existing = await db.product.findFirst({ where: { tenantId, name } });
     if (!existing) await db.product.create({ data: { tenantId, name, priceCents, weightGrams, lengthCm: 20, widthCm: 12, heightCm: 6 } });
   }
+
+  // SAMPLE catalogue so onboarding can be tried locally. Replace it with
+  // the real APLGO range via Admin → Product catalogue (CSV).
+  await importMasterCatalogue({
+    products: [
+      { sku: "SAMPLE-01", name: "Sample Drops: Immune", priceCents: 85_000, description: "Sample product (replace with the real catalogue)", weightGrams: 120 },
+      { sku: "SAMPLE-02", name: "Sample Drops: Energy", priceCents: 85_000, description: "Sample product", weightGrams: 120 },
+      { sku: "SAMPLE-03", name: "Sample Drops: Sleep", priceCents: 85_000, description: "Sample product", weightGrams: 120 },
+      { sku: "SAMPLE-04", name: "Sample Drops: Detox", priceCents: 85_000, description: "Sample product", weightGrams: 120 },
+    ],
+  });
+  await setDefaultPaxiTariff([{ serviceCode: "STANDARD", name: "Standard", rateCents: 5995, etaMinDays: 7, etaMaxDays: 9 }]);
 
   console.log("Seeded demo shop: /shop/demo — seller login demo@chatcart.test / demo-password-123");
 }

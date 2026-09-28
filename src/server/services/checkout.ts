@@ -11,6 +11,8 @@ import { addWorkingDays } from "../delivery/dates.ts";
 import { calculateParcel } from "../delivery/packaging.ts";
 import { customerShippingPrice } from "../delivery/pricing.ts";
 import { getDeliveryAdapter } from "../delivery/registry.ts";
+import { deliveryLine } from "../delivery/messages.ts";
+import { rands } from "../delivery/pricing.ts";
 import { METHOD_LABELS, METHOD_ORDER } from "../delivery/status.ts";
 import type { DeliveryMethod, Destination, RateRequest, StreetAddress } from "../delivery/types.ts";
 import { findOrCreateCustomer, giveConsent, rememberDeliveryChoice } from "./customers.ts";
@@ -429,5 +431,15 @@ export async function getOrderForPayment(orderId: string) {
     totalCents: order.totalCents,
     destination: order.deliveryDestination as unknown as Destination,
     items: order.items.map((i) => ({ name: i.name, quantity: i.quantity, lineCents: i.unitPriceCents * i.quantity })),
+    cardPayments: !!order.tenant.yocoSecretKeyEncrypted,
+    paymentInstructions: order.tenant.paymentInstructions,
+    sellerName: order.tenant.sellerDisplayName ?? order.tenant.name,
+    // Opens the customer's WhatsApp with a message to the seller's own
+    // number — works before the seller's number is connected to the API.
+    sellerWhatsAppUrl: order.tenant.whatsappNumber
+      ? `https://wa.me/${order.tenant.whatsappNumber}?text=${encodeURIComponent(
+          `Hi ${order.tenant.sellerDisplayName ?? ""}, I've just placed order ${order.number} (${rands(order.totalCents)}) on your shop. ${deliveryLine(order.deliveryDestination as unknown as Destination)}.`.replace("Hi ,", "Hi,"),
+        )}`
+      : null,
   };
 }

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireCurrentUser } from "@/server/http/context";
 import { listProducts } from "@/server/services/products";
 import { rands } from "../../_lib/format";
@@ -8,7 +9,10 @@ export default async function ProductsPage() {
   const products = await listProducts(user);
   return (
     <main className="container stack">
-      <h1>Products</h1>
+      <div className="spread">
+        <h1>Products</h1>
+        <Link className="btn" href="/dashboard/setup">Choose from the catalogue</Link>
+      </div>
       <ProductForm />
       <div className="card table-wrap">
         {products.length === 0 ? (

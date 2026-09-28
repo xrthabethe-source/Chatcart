@@ -5,6 +5,7 @@ import { fillTemplate, shipmentTemplate, WHATSAPP_TEMPLATES, type ShipmentSummar
 import { NOTIFY_ON } from "./status.ts";
 
 const summary: ShipmentSummaryInput = {
+  shopName: "Sandile's Shop",
   orderNumber: "SHS-1048",
   providerCode: "PAXI",
   providerName: "PEP / PAXI",
@@ -49,6 +50,6 @@ test("a filled template reads naturally", () => {
   const t = shipmentTemplate({ ...summary, status: "READY_FOR_COLLECTION" })!;
   assert.equal(
     fillTemplate(WHATSAPP_TEMPLATES[t.name]!.body, t.params),
-    "🎉 Order SHS-1048 is ready for collection at PEP Jabulani Mall. Take your ID and this order number with you.",
+    "🎉 Sandile's Shop: order SHS-1048 is ready for collection at PEP Jabulani Mall. Take your ID and this order number with you.",
   );
 });

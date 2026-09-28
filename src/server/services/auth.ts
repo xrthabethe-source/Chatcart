@@ -1,7 +1,7 @@
 import { createHash, randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 import { z } from "zod";
-import { db } from "../db.ts";
+import { db, type Prisma } from "../db.ts";
 import { ConflictError, UnauthenticatedError, ValidationError, zodMessage } from "./errors.ts";
 import { ensureTenantDeliveryProviders } from "./delivery-catalogue.ts";
 
@@ -41,6 +41,7 @@ export function slugify(value: string): string {
   return value
     .toLowerCase()
     .normalize("NFKD")
+    .replace(/['’]/g, "") // "Sandile's Shop" → sandiles-shop
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 40) || "shop";
@@ -53,6 +54,38 @@ export const registerSchema = z.object({
   password: z.string().min(10, "Password must be at least 10 characters.").max(200),
 });
 
+export interface ShopExtras {
+  whatsappNumber?: string | null;
+  associateId?: string | null;
+  invitedById?: string | null;
+}
+
+/**
+ * Creates a shop, its owner and its (disabled) delivery settings inside
+ * `tx`. Shared by open registration and invite-link onboarding.
+ */
+export async function createShopInTx(
+  tx: Prisma.TransactionClient,
+  data: { shopName: string; name: string; email: string; passwordHash: string } & ShopExtras,
+) {
+  const base = slugify(data.shopName);
+  let slug = base;
+  for (let i = 2; await tx.tenant.findUnique({ where: { slug } }); i++) slug = `${base}-${i}`;
+  const tenant = await tx.tenant.create({
+    data: {
+      name: data.shopName,
+      slug,
+      sellerDisplayName: data.name.split(" ")[0],
+      whatsappNumber: data.whatsappNumber ?? null,
+      associateId: data.associateId ?? null,
+      invitedById: data.invitedById ?? null,
+    },
+  });
+  const user = await tx.user.create({ data: { tenantId: tenant.id, email: data.email, name: data.name, passwordHash: data.passwordHash } });
+  await ensureTenantDeliveryProviders(tx, tenant.id);
+  return { tenant, user };
+}
+
 export async function registerSeller(input: z.input<typeof registerSchema>) {
   const parsed = registerSchema.safeParse(input);
   if (!parsed.success) throw new ValidationError(zodMessage(parsed.error));
@@ -60,18 +93,7 @@ export async function registerSeller(input: z.input<typeof registerSchema>) {
 
   if (await db.user.findUnique({ where: { email } })) throw new ConflictError("An account with this email already exists.");
   const passwordHash = await hashPassword(password);
-  const base = slugify(shopName);
-
-  const tenant = await db.$transaction(async (tx) => {
-    let slug = base;
-    for (let i = 2; await tx.tenant.findUnique({ where: { slug } }); i++) slug = `${base}-${i}`;
-    const created = await tx.tenant.create({ data: { name: shopName, slug, sellerDisplayName: name.split(" ")[0] } });
-    await tx.user.create({ data: { tenantId: created.id, email, name, passwordHash } });
-    await ensureTenantDeliveryProviders(tx, created.id);
-    return created;
-  });
-
-  const user = await db.user.findUniqueOrThrow({ where: { email } });
+  const { tenant, user } = await db.$transaction((tx) => createShopInTx(tx, { shopName, name, email, passwordHash }));
   return { tenant, sessionToken: await createSession(user.id) };
 }
 
@@ -85,7 +107,7 @@ export async function login(emailInput: string, password: string) {
   return { sessionToken: await createSession(user.id) };
 }
 
-async function createSession(userId: string): Promise<string> {
+export async function createSession(userId: string): Promise<string> {
   const token = randomBytes(32).toString("base64url");
   await db.session.create({ data: { userId, tokenHash: sha256(token), expiresAt: new Date(Date.now() + SESSION_TTL_MS) } });
   return token;

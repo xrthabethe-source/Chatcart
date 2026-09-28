@@ -33,8 +33,27 @@ model Tenant {
   nextOrderNo Int      @default(1001) @map("next_order_no")
   // Name used in customer-facing copy: "Collect from Sandile".
   sellerDisplayName String? @map("seller_display_name")
-  // Meta Cloud API phone number id this shop's WhatsApp number maps to.
+  // Meta Cloud API phone number id this shop's WhatsApp number maps to
+  // (set once the seller connects their own number to the API).
   whatsappPhoneId   String? @unique @map("whatsapp_phone_id")
+  // The seller's own WhatsApp number (27XXXXXXXXX). Before their number
+  // is connected to the API, customers reach them through wa.me links to
+  // this number, and new-order alerts are sent to it.
+  whatsappNumber    String? @map("whatsapp_number")
+  // Distributor/associate id with the brand they sell for (e.g. APLGO).
+  associateId       String? @map("associate_id")
+  invitedById       String? @map("invited_by_id") @db.Uuid
+
+  // Yoco online payments. The secret key and webhook secret are
+  // AES-GCM encrypted (see delivery/credentials.ts); money goes straight
+  // to the seller's own Yoco account — Chatcart never holds funds.
+  yocoSecretKeyEncrypted     String? @map("yoco_secret_key_encrypted")
+  yocoWebhookId              String? @map("yoco_webhook_id")
+  yocoWebhookSecretEncrypted String? @map("yoco_webhook_secret_encrypted")
+  yocoTestMode               Boolean @default(false) @map("yoco_test_mode")
+  // Shown on the payment page for EFT / cash payments.
+  paymentInstructions        String? @map("payment_instructions")
+
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -48,6 +67,8 @@ model Tenant {
   shipments         Shipment[]
   outboundMessages  OutboundMessage[]
   conversations     Conversation[]
+  invitesCreated    Invite[]          @relation("InviteCreator")
+  paymentCheckouts  PaymentCheckout[]
 
   @@map("tenants")
 }
@@ -104,16 +125,76 @@ model Product {
   widthCm          Int?             @map("width_cm")
   heightCm         Int?             @map("height_cm")
   shippingCategory ShippingCategory @default(STANDARD) @map("shipping_category")
+  imageUrl         String?          @map("image_url")
+  // Set when the product was adopted from the shared brand catalogue;
+  // catalogue updates (name, photo, size) flow through to it.
+  masterProductId  String?          @map("master_product_id") @db.Uuid
   createdAt        DateTime         @default(now()) @map("created_at")
   updatedAt        DateTime         @updatedAt @map("updated_at")
 
-  tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  cartItems  CartItem[]
-  orderItems OrderItem[]
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  masterProduct MasterProduct? @relation(fields: [masterProductId], references: [id], onDelete: SetNull)
+  cartItems     CartItem[]
+  orderItems    OrderItem[]
 
   @@unique([tenantId, sku])
+  @@unique([tenantId, masterProductId])
   @@index([tenantId, active])
   @@map("products")
+}
+
+// Shared brand catalogue (e.g. the APLGO range), loaded once by a
+// platform admin. Associates tick the products they stock, which copies
+// them into their own shop as ordinary Products.
+model MasterProduct {
+  id                  String           @id @default(uuid()) @db.Uuid
+  sku                 String           @unique
+  name                String
+  description         String?
+  imageUrl            String?          @map("image_url")
+  category            String?
+  // Recommended retail price; each associate can adjust their own.
+  priceCents          Int              @map("price_cents")
+  weightGrams         Int?             @map("weight_grams")
+  lengthCm            Int?             @map("length_cm")
+  widthCm             Int?             @map("width_cm")
+  heightCm            Int?             @map("height_cm")
+  shippingCategory    ShippingCategory @default(STANDARD) @map("shipping_category")
+  active              Boolean          @default(true)
+  sortOrder           Int              @default(0) @map("sort_order")
+  createdAt           DateTime         @default(now()) @map("created_at")
+  updatedAt           DateTime         @updatedAt @map("updated_at")
+
+  products Product[]
+
+  @@map("master_products")
+}
+
+// Platform-wide settings (JSON by key), e.g. the default PAXI prices new
+// associates start with.
+model PlatformSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("platform_settings")
+}
+
+// Invite link for onboarding a new associate: /join/<token>.
+model Invite {
+  id          String    @id @default(uuid()) @db.Uuid
+  // SHA-256 of the token in the link.
+  tokenHash   String    @unique @map("token_hash")
+  label       String?   // who it's for, e.g. "Sandile"
+  createdById String?   @map("created_by_id") @db.Uuid
+  maxUses     Int       @default(1) @map("max_uses")
+  uses        Int       @default(0)
+  expiresAt   DateTime  @map("expires_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  createdBy Tenant? @relation("InviteCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@map("invites")
 }
 
 // ─── Customers and remembered delivery preferences ────────────────────
@@ -431,6 +512,7 @@ model Order {
   deliveryLocation DeliveryLocation? @relation(fields: [deliveryLocationId], references: [id])
   items            OrderItem[]
   shipments        Shipment[]
+  paymentCheckouts PaymentCheckout[]
 
   @@unique([tenantId, number])
   @@index([tenantId, status])
@@ -449,6 +531,27 @@ model OrderItem {
   product Product @relation(fields: [productId], references: [id])
 
   @@map("order_items")
+}
+
+// One online payment attempt (e.g. a Yoco checkout) for an order.
+model PaymentCheckout {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  orderId     String   @map("order_id") @db.Uuid
+  provider    String   // YOCO
+  externalId  String   @map("external_id") // provider checkout id
+  amountCents Int      @map("amount_cents")
+  status      String   @default("CREATED") // CREATED, SUCCEEDED, FAILED
+  redirectUrl String   @map("redirect_url")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  order  Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, externalId])
+  @@index([orderId])
+  @@map("payment_checkouts")
 }
 
 // ─── Shipments and tracking ───────────────────────────────────────────

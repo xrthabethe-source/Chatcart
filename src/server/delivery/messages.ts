@@ -6,6 +6,7 @@ import { sastDate } from "./dates.ts";
 import type { Destination, ShipmentStatus } from "./types.ts";
 
 export interface ShipmentSummaryInput {
+  shopName: string;
   orderNumber: string;
   providerCode: string;
   providerName: string;
@@ -95,71 +96,88 @@ export interface TemplateSpec {
   example: string[];
 }
 
+// {{1}} is always the shop name: until a seller connects their own
+// number, customers get these from the shared Chatcart number, so each
+// message says which shop it's about.
 export const WHATSAPP_TEMPLATES: Record<string, TemplateSpec> = {
   order_paid: {
     name: "order_paid",
-    body: "✅ Payment of {{1}} received for order {{2}}.\nDelivery: {{3}}\nWe'll let you know when it ships.",
-    example: ["R859.95", "SHS-1048", "Collect at PEP Jabulani Mall"],
+    body: "✅ {{1}}: payment of {{2}} received for order {{3}}.\nDelivery: {{4}}\nWe'll let you know when it ships.",
+    example: ["Sandile's Shop", "R859.95", "SHS-1048", "Collect at PEP Jabulani Mall"],
   },
   shipment_booked: {
     name: "shipment_booked",
-    body: "📦 Order {{1}} is booked with {{2}}.\nTracking no: {{3}}\nReply TRACK any time for an update.",
-    example: ["SHS-1048", "PAXI", "PX-778812"],
+    body: "📦 {{1}}: order {{2}} is booked with {{3}}.\nTracking no: {{4}}\nReply TRACK any time for an update.",
+    example: ["Sandile's Shop", "SHS-1048", "PAXI", "PX-778812"],
   },
   shipment_collected: {
     name: "shipment_collected",
-    body: "🚚 Order {{1}} is on its way. {{2}} has your parcel.\nReply TRACK any time for an update.",
-    example: ["SHS-1048", "The Courier Guy"],
+    body: "🚚 {{1}}: order {{2}} is on its way. {{3}} has your parcel.\nReply TRACK any time for an update.",
+    example: ["Sandile's Shop", "SHS-1048", "The Courier Guy"],
   },
   shipment_in_transit: {
     name: "shipment_in_transit",
-    body: "🚚 Order {{1}} is in transit to {{2}}.\nReply TRACK any time for an update.",
-    example: ["SHS-1048", "PEP Jabulani Mall"],
+    body: "🚚 {{1}}: order {{2}} is in transit to {{3}}.\nReply TRACK any time for an update.",
+    example: ["Sandile's Shop", "SHS-1048", "PEP Jabulani Mall"],
   },
   shipment_ready_for_collection: {
     name: "shipment_ready_for_collection",
-    body: "🎉 Order {{1}} is ready for collection at {{2}}. Take your ID and this order number with you.",
-    example: ["SHS-1048", "PEP Jabulani Mall"],
+    body: "🎉 {{1}}: order {{2}} is ready for collection at {{3}}. Take your ID and this order number with you.",
+    example: ["Sandile's Shop", "SHS-1048", "PEP Jabulani Mall"],
   },
   shipment_out_for_delivery: {
     name: "shipment_out_for_delivery",
-    body: "🛵 Order {{1}} is out for delivery today.\nReply TRACK any time for an update.",
-    example: ["SHS-1049"],
+    body: "🛵 {{1}}: order {{2}} is out for delivery today.\nReply TRACK any time for an update.",
+    example: ["Sandile's Shop", "SHS-1049"],
   },
   shipment_delivered: {
     name: "shipment_delivered",
-    body: "✅ Order {{1}} has been delivered or collected. Enjoy!",
-    example: ["SHS-1048"],
+    body: "✅ {{1}}: order {{2}} has been delivered or collected. Enjoy!",
+    example: ["Sandile's Shop", "SHS-1048"],
   },
   shipment_exception: {
     name: "shipment_exception",
-    body: "⚠️ There's a delivery problem with order {{1}}. The seller has been alerted and will contact you.",
-    example: ["SHS-1048"],
+    body: "⚠️ {{1}}: there's a delivery problem with order {{2}}. The seller has been alerted and will contact you.",
+    example: ["Sandile's Shop", "SHS-1048"],
+  },
+  // To the seller, from the shared Chatcart number.
+  seller_new_order: {
+    name: "seller_new_order",
+    body: "🛒 New paid order {{1}} for {{2}}.\nCustomer: {{3}}\nDelivery: {{4}}\nOpen Chatcart to ship it.",
+    example: ["SHS-1048", "R859.95", "Thandi Nkosi, 082 123 4567", "Collect at PEP Jabulani Mall"],
   },
 };
 
 /** Template name + ordered parameters for a shipment status notification. */
 export function shipmentTemplate(s: ShipmentSummaryInput): { name: string; params: string[] } | null {
+  const shop = s.shopName;
   const courier = courierLabel(s.providerCode, s.providerName);
   const where = s.destination.kind === "PICKUP_POINT" ? s.destination.location.name : destinationLabel(s.destination);
   switch (s.status) {
     case "BOOKED":
-      return { name: "shipment_booked", params: [s.orderNumber, courier, s.trackingNumber ?? "to follow"] };
+      return { name: "shipment_booked", params: [shop, s.orderNumber, courier, s.trackingNumber ?? "to follow"] };
     case "COLLECTED":
-      return { name: "shipment_collected", params: [s.orderNumber, courier] };
+      return { name: "shipment_collected", params: [shop, s.orderNumber, courier] };
     case "IN_TRANSIT":
-      return { name: "shipment_in_transit", params: [s.orderNumber, where] };
+      return { name: "shipment_in_transit", params: [shop, s.orderNumber, where] };
     case "READY_FOR_COLLECTION":
-      return { name: "shipment_ready_for_collection", params: [s.orderNumber, where] };
+      return { name: "shipment_ready_for_collection", params: [shop, s.orderNumber, where] };
     case "OUT_FOR_DELIVERY":
-      return { name: "shipment_out_for_delivery", params: [s.orderNumber] };
+      return { name: "shipment_out_for_delivery", params: [shop, s.orderNumber] };
     case "DELIVERED":
-      return { name: "shipment_delivered", params: [s.orderNumber] };
+      return { name: "shipment_delivered", params: [shop, s.orderNumber] };
     case "EXCEPTION":
-      return { name: "shipment_exception", params: [s.orderNumber] };
+      return { name: "shipment_exception", params: [shop, s.orderNumber] };
     default:
       return null;
   }
+}
+
+/** One-line delivery description used in order messages. */
+export function deliveryLine(destination: Destination): string {
+  if (destination.kind === "PICKUP_POINT") return `Collect at ${destination.location.name}`;
+  if (destination.kind === "SELLER_COLLECTION") return "Collect from the seller";
+  return `Deliver to ${destinationLabel(destination)}`;
 }
 
 /** Fills a template body with its parameters (used by tests and docs). */

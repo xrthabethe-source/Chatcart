@@ -1,11 +1,15 @@
 // Customer delivery notifications over WhatsApp, via an outbox.
 //
+// Sent from the shop's own WhatsApp number once it's connected to the
+// API; until then from the shared Chatcart number
+// (WHATSAPP_PLATFORM_PHONE_ID), with the shop's name in every message.
+//
 // Every notification has a dedupe key ("shipment:<id>:IN_TRANSIT"), so a
 // status reported ten times by ten tracking polls messages the customer
 // once. Sending happens after the database write (best-effort
 // immediately, and again from the cron sweep), never inside it.
 import { db } from "../db.ts";
-import { destinationLabel, fillTemplate, shipmentTemplate, WHATSAPP_TEMPLATES, type ShipmentSummaryInput } from "../delivery/messages.ts";
+import { deliveryLine, fillTemplate, shipmentTemplate, WHATSAPP_TEMPLATES, type ShipmentSummaryInput } from "../delivery/messages.ts";
 import { rands } from "../delivery/pricing.ts";
 import { NOTIFY_ON } from "../delivery/status.ts";
 import type { Destination, ShipmentStatus } from "../delivery/types.ts";
@@ -17,10 +21,11 @@ const SERVICE_WINDOW_MS = 24 * 60 * 60 * 1000;
 export async function shipmentSummary(shipmentId: string, now = new Date()): Promise<ShipmentSummaryInput & { tenantId: string; customerPhone: string }> {
   const shipment = await db.shipment.findUniqueOrThrow({
     where: { id: shipmentId },
-    include: { provider: true, order: { include: { customer: true } } },
+    include: { provider: true, order: { include: { customer: true, tenant: true } } },
   });
   return {
     tenantId: shipment.tenantId,
+    shopName: shipment.order.tenant.name,
     customerPhone: shipment.order.customer.phone,
     orderNumber: shipment.order.number,
     providerCode: shipment.provider.code,
@@ -76,18 +81,10 @@ export async function enqueueShipmentNotification(shipmentId: string, status: Sh
 export async function enqueueOrderNotification(tenantId: string, orderId: string, kind: "ORDER_PAID") {
   const order = await db.order.findFirstOrThrow({
     where: { id: orderId, tenantId },
-    include: { customer: true, deliveryProvider: true },
+    include: { customer: true, tenant: true },
   });
   const destination = order.deliveryDestination as unknown as Destination;
-  const params = [
-    rands(order.totalCents),
-    order.number,
-    destination.kind === "PICKUP_POINT"
-      ? `Collect at ${destination.location.name}`
-      : destination.kind === "SELLER_COLLECTION"
-        ? "Collect from the seller"
-        : `Deliver to ${destinationLabel(destination)}`,
-  ];
+  const params = [order.tenant.name, rands(order.totalCents), order.number, deliveryLine(destination)];
   const created = await enqueue(
     tenantId,
     order.customer.phone,
@@ -96,8 +93,28 @@ export async function enqueueOrderNotification(tenantId: string, orderId: string
     fillTemplate(WHATSAPP_TEMPLATES.order_paid!.body, params),
     `order:${orderId}:${kind}`,
   );
+
+  // Seller alert, from the shared number to the seller's own WhatsApp.
+  // Skipped once their own number is connected (it can't message itself;
+  // they see the order in that chat instead).
+  if (!order.tenant.whatsappPhoneId && order.tenant.whatsappNumber) {
+    const customer = [order.customer.name, localPhone(order.customer.phone)].filter(Boolean).join(", ");
+    const sellerParams = [order.number, rands(order.totalCents), customer, deliveryLine(destination)];
+    await enqueue(
+      tenantId,
+      order.tenant.whatsappNumber,
+      "seller_new_order",
+      sellerParams,
+      fillTemplate(WHATSAPP_TEMPLATES.seller_new_order!.body, sellerParams),
+      `order:${orderId}:SELLER_ALERT`,
+    );
+  }
   if (created) await dispatchOutbox(tenantId).catch((e) => console.error("WhatsApp dispatch failed:", e));
   return created;
+}
+
+function localPhone(phone: string): string {
+  return phone.startsWith("27") && phone.length === 11 ? `0${phone.slice(2)}` : phone;
 }
 
 /** Sends queued messages. Safe to call concurrently-ish and repeatedly. */
@@ -114,10 +131,15 @@ export async function dispatchOutbox(tenantId?: string, limit = 50, now = new Da
     // Claim it first so two sweeps never double-send.
     const claimed = await db.outboundMessage.updateMany({ where: { id: message.id, status: "QUEUED" }, data: { status: "SENT", sentAt: now } });
     if (claimed.count === 0) continue;
-    const conversation = await db.conversation.findUnique({ where: { tenantId_phone: { tenantId: message.tenantId, phone: message.toPhone } } });
+    const ownNumber = message.tenant.whatsappPhoneId;
+    // The 24h window only exists on a number the customer has written to;
+    // the shared number always uses templates.
+    const conversation = ownNumber
+      ? await db.conversation.findUnique({ where: { tenantId_phone: { tenantId: message.tenantId, phone: message.toPhone } } })
+      : null;
     try {
       await sender.send({
-        phoneNumberId: message.tenant.whatsappPhoneId,
+        phoneNumberId: ownNumber ?? process.env.WHATSAPP_PLATFORM_PHONE_ID ?? null,
         to: message.toPhone,
         body: message.body,
         template: message.template,

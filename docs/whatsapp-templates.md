@@ -16,16 +16,16 @@ Inside the 24-hour window the app sends the same text as a normal message, so cu
 Body (paste exactly, including line breaks and emoji):
 
 ```
-✅ Payment of {{1}} received for order {{2}}.
-Delivery: {{3}}
+✅ {{1}}: payment of {{2}} received for order {{3}}.
+Delivery: {{4}}
 We'll let you know when it ships.
 ```
 
-Sample values for Meta's review: {{1}} = `R859.95`, {{2}} = `SHS-1048`, {{3}} = `Collect at PEP Jabulani Mall`
+Sample values for Meta's review: {{1}} = `Sandile's Shop`, {{2}} = `R859.95`, {{3}} = `SHS-1048`, {{4}} = `Collect at PEP Jabulani Mall`
 
 Preview:
 
-> ✅ Payment of R859.95 received for order SHS-1048.
+> ✅ Sandile's Shop: payment of R859.95 received for order SHS-1048.
 > Delivery: Collect at PEP Jabulani Mall
 > We'll let you know when it ships.
 
@@ -34,16 +34,16 @@ Preview:
 Body (paste exactly, including line breaks and emoji):
 
 ```
-📦 Order {{1}} is booked with {{2}}.
-Tracking no: {{3}}
+📦 {{1}}: order {{2}} is booked with {{3}}.
+Tracking no: {{4}}
 Reply TRACK any time for an update.
 ```
 
-Sample values for Meta's review: {{1}} = `SHS-1048`, {{2}} = `PAXI`, {{3}} = `PX-778812`
+Sample values for Meta's review: {{1}} = `Sandile's Shop`, {{2}} = `SHS-1048`, {{3}} = `PAXI`, {{4}} = `PX-778812`
 
 Preview:
 
-> 📦 Order SHS-1048 is booked with PAXI.
+> 📦 Sandile's Shop: order SHS-1048 is booked with PAXI.
 > Tracking no: PX-778812
 > Reply TRACK any time for an update.
 
@@ -52,15 +52,15 @@ Preview:
 Body (paste exactly, including line breaks and emoji):
 
 ```
-🚚 Order {{1}} is on its way. {{2}} has your parcel.
+🚚 {{1}}: order {{2}} is on its way. {{3}} has your parcel.
 Reply TRACK any time for an update.
 ```
 
-Sample values for Meta's review: {{1}} = `SHS-1048`, {{2}} = `The Courier Guy`
+Sample values for Meta's review: {{1}} = `Sandile's Shop`, {{2}} = `SHS-1048`, {{3}} = `The Courier Guy`
 
 Preview:
 
-> 🚚 Order SHS-1048 is on its way. The Courier Guy has your parcel.
+> 🚚 Sandile's Shop: order SHS-1048 is on its way. The Courier Guy has your parcel.
 > Reply TRACK any time for an update.
 
 ## `shipment_in_transit`
@@ -68,15 +68,15 @@ Preview:
 Body (paste exactly, including line breaks and emoji):
 
 ```
-🚚 Order {{1}} is in transit to {{2}}.
+🚚 {{1}}: order {{2}} is in transit to {{3}}.
 Reply TRACK any time for an update.
 ```
 
-Sample values for Meta's review: {{1}} = `SHS-1048`, {{2}} = `PEP Jabulani Mall`
+Sample values for Meta's review: {{1}} = `Sandile's Shop`, {{2}} = `SHS-1048`, {{3}} = `PEP Jabulani Mall`
 
 Preview:
 
-> 🚚 Order SHS-1048 is in transit to PEP Jabulani Mall.
+> 🚚 Sandile's Shop: order SHS-1048 is in transit to PEP Jabulani Mall.
 > Reply TRACK any time for an update.
 
 ## `shipment_ready_for_collection`
@@ -84,29 +84,29 @@ Preview:
 Body (paste exactly, including line breaks and emoji):
 
 ```
-🎉 Order {{1}} is ready for collection at {{2}}. Take your ID and this order number with you.
+🎉 {{1}}: order {{2}} is ready for collection at {{3}}. Take your ID and this order number with you.
 ```
 
-Sample values for Meta's review: {{1}} = `SHS-1048`, {{2}} = `PEP Jabulani Mall`
+Sample values for Meta's review: {{1}} = `Sandile's Shop`, {{2}} = `SHS-1048`, {{3}} = `PEP Jabulani Mall`
 
 Preview:
 
-> 🎉 Order SHS-1048 is ready for collection at PEP Jabulani Mall. Take your ID and this order number with you.
+> 🎉 Sandile's Shop: order SHS-1048 is ready for collection at PEP Jabulani Mall. Take your ID and this order number with you.
 
 ## `shipment_out_for_delivery`
 
 Body (paste exactly, including line breaks and emoji):
 
 ```
-🛵 Order {{1}} is out for delivery today.
+🛵 {{1}}: order {{2}} is out for delivery today.
 Reply TRACK any time for an update.
 ```
 
-Sample values for Meta's review: {{1}} = `SHS-1049`
+Sample values for Meta's review: {{1}} = `Sandile's Shop`, {{2}} = `SHS-1049`
 
 Preview:
 
-> 🛵 Order SHS-1049 is out for delivery today.
+> 🛵 Sandile's Shop: order SHS-1049 is out for delivery today.
 > Reply TRACK any time for an update.
 
 ## `shipment_delivered`
@@ -114,25 +114,45 @@ Preview:
 Body (paste exactly, including line breaks and emoji):
 
 ```
-✅ Order {{1}} has been delivered or collected. Enjoy!
+✅ {{1}}: order {{2}} has been delivered or collected. Enjoy!
 ```
 
-Sample values for Meta's review: {{1}} = `SHS-1048`
+Sample values for Meta's review: {{1}} = `Sandile's Shop`, {{2}} = `SHS-1048`
 
 Preview:
 
-> ✅ Order SHS-1048 has been delivered or collected. Enjoy!
+> ✅ Sandile's Shop: order SHS-1048 has been delivered or collected. Enjoy!
 
 ## `shipment_exception`
 
 Body (paste exactly, including line breaks and emoji):
 
 ```
-⚠️ There's a delivery problem with order {{1}}. The seller has been alerted and will contact you.
+⚠️ {{1}}: there's a delivery problem with order {{2}}. The seller has been alerted and will contact you.
 ```
 
-Sample values for Meta's review: {{1}} = `SHS-1048`
+Sample values for Meta's review: {{1}} = `Sandile's Shop`, {{2}} = `SHS-1048`
 
 Preview:
 
-> ⚠️ There's a delivery problem with order SHS-1048. The seller has been alerted and will contact you.
+> ⚠️ Sandile's Shop: there's a delivery problem with order SHS-1048. The seller has been alerted and will contact you.
+
+## `seller_new_order`
+
+Body (paste exactly, including line breaks and emoji):
+
+```
+🛒 New paid order {{1}} for {{2}}.
+Customer: {{3}}
+Delivery: {{4}}
+Open Chatcart to ship it.
+```
+
+Sample values for Meta's review: {{1}} = `SHS-1048`, {{2}} = `R859.95`, {{3}} = `Thandi Nkosi, 082 123 4567`, {{4}} = `Collect at PEP Jabulani Mall`
+
+Preview:
+
+> 🛒 New paid order SHS-1048 for R859.95.
+> Customer: Thandi Nkosi, 082 123 4567
+> Delivery: Collect at PEP Jabulani Mall
+> Open Chatcart to ship it.

@@ -7,6 +7,7 @@
 import { z } from "zod";
 import { db } from "../db.ts";
 import { isPlatformAdmin, type AuthenticatedUser } from "./auth.ts";
+import { normalisePhone } from "./customers.ts";
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError, zodMessage } from "./errors.ts";
 
 export async function getShopSettings(user: AuthenticatedUser) {
@@ -18,6 +19,10 @@ export async function getShopSettings(user: AuthenticatedUser) {
     sellerDisplayName: tenant.sellerDisplayName,
     orderPrefix: tenant.orderPrefix,
     whatsappPhoneId: tenant.whatsappPhoneId,
+    whatsappNumber: tenant.whatsappNumber,
+    yocoConnected: !!tenant.yocoSecretKeyEncrypted,
+    yocoTestMode: tenant.yocoTestMode,
+    paymentInstructions: tenant.paymentInstructions,
     canLinkWhatsApp: isPlatformAdmin(user),
     whatsappConfigured: !!process.env.WHATSAPP_META_ACCESS_TOKEN && !!process.env.WHATSAPP_META_APP_SECRET,
   };
@@ -32,6 +37,8 @@ export const shopSettingsSchema = z
       .trim()
       .toUpperCase()
       .regex(/^[A-Z]{2,6}$/, "Order prefix must be 2–6 letters, e.g. SHS or CC."),
+    // The seller's own number, for "Chat with …" links and order alerts.
+    whatsappNumber: z.string().trim().max(20).nullable(),
     whatsappPhoneId: z
       .string()
       .trim()
@@ -66,7 +73,7 @@ export async function updateShopSettings(
 ) {
   const parsed = shopSettingsSchema.safeParse(input);
   if (!parsed.success) throw new ValidationError(zodMessage(parsed.error));
-  const { whatsappPhoneId, ...rest } = parsed.data;
+  const { whatsappPhoneId, whatsappNumber, ...rest } = parsed.data;
 
   let linkedNumber: string | null = null;
   if (whatsappPhoneId !== undefined) {
@@ -77,7 +84,11 @@ export async function updateShopSettings(
   try {
     await db.tenant.update({
       where: { id: user.tenantId },
-      data: { ...rest, ...(whatsappPhoneId !== undefined ? { whatsappPhoneId } : {}) },
+      data: {
+        ...rest,
+        ...(whatsappPhoneId !== undefined ? { whatsappPhoneId } : {}),
+        ...(whatsappNumber !== undefined ? { whatsappNumber: whatsappNumber ? normalisePhone(whatsappNumber) : null } : {}),
+      },
     });
   } catch (error) {
     if ((error as { code?: string }).code === "P2002") throw new ConflictError("That WhatsApp number is already linked to another shop.");

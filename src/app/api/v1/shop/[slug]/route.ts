@@ -9,8 +9,14 @@ export const GET = handle(async (request: NextRequest, { params }: { params: Pro
   const shop = await resolveShop((await params).slug);
   const customer = await findCustomerByWebToken(shop.id, request.cookies.get(CUSTOMER_COOKIE_NAME)?.value);
   return NextResponse.json({
-    shop: { name: shop.name, slug: shop.slug },
-    products: (await listActiveProducts(shop.id)).map((p) => ({ id: p.id, name: p.name, description: p.description, priceCents: p.priceCents })),
+    shop: {
+      name: shop.name,
+      slug: shop.slug,
+      sellerName: shop.sellerDisplayName,
+      // "Chat with Sandile" goes to the seller's own WhatsApp.
+      whatsappUrl: shop.whatsappNumber ? `https://wa.me/${shop.whatsappNumber}?text=${encodeURIComponent(`Hi ${shop.sellerDisplayName ?? ""}, I'm looking at your shop.`)}` : null,
+    },
+    products: (await listActiveProducts(shop.id)).map((p) => ({ id: p.id, name: p.name, description: p.description, priceCents: p.priceCents, imageUrl: p.imageUrl })),
     deliveryMethods: await getDeliveryMethods(shop.id),
     returning: customer ? { name: customer.name, phone: customer.phone, suggestion: await getReturningSuggestion(customer.id) } : null,
   });

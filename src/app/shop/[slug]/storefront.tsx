@@ -7,13 +7,13 @@ import { api, rands } from "../../_lib/format";
 
 type Method = "PAXI_PICKUP" | "DOOR_COURIER" | "SAME_DAY" | "SELLER_COLLECTION";
 
-interface Product { id: string; name: string; description: string | null; priceCents: number }
+interface Product { id: string; name: string; description: string | null; priceCents: number; imageUrl: string | null }
 interface MethodOption { method: Method; label: string }
 interface Address { recipientName?: string | null; street: string; complex?: string | null; suburb: string; city: string; province?: string | null; postcode: string }
 interface PickupPoint { id: string; name: string; suburb?: string | null; city?: string | null; address?: string | null; distanceLabel: string | null }
 interface Suggestion { method: Method | null; pickupLocation: PickupPoint | null; address: (Address & { id: string }) | null }
 interface ShopData {
-  shop: { name: string; slug: string };
+  shop: { name: string; slug: string; sellerName: string | null; whatsappUrl: string | null };
   products: Product[];
   deliveryMethods: MethodOption[];
   returning: { name: string | null; phone: string; suggestion: Suggestion | null } | null;
@@ -158,9 +158,14 @@ export function Storefront({ slug }: { slug: string }) {
 
   return (
     <main className="narrow stack">
-      <header>
-        <h1>{data.shop.name}</h1>
-        {data.returning?.name && <p className="muted">Welcome back, {data.returning.name.split(" ")[0]}!</p>}
+      <header className="spread">
+        <div>
+          <h1>{data.shop.name}</h1>
+          {data.returning?.name && <p className="muted">Welcome back, {data.returning.name.split(" ")[0]}!</p>}
+        </div>
+        {data.shop.whatsappUrl && (
+          <a className="btn btn-sm" href={data.shop.whatsappUrl} target="_blank" rel="noreferrer">💬 Chat with {data.shop.sellerName ?? "the seller"}</a>
+        )}
       </header>
       {error && <div className="alert alert-error" role="alert">{error}</div>}
 
@@ -169,10 +174,16 @@ export function Storefront({ slug }: { slug: string }) {
           {data.products.length === 0 && <p className="muted">No products yet.</p>}
           {data.products.map((p) => (
             <div key={p.id} className="card spread">
-              <div>
+              <div className="row" style={{ flexWrap: "nowrap", alignItems: "flex-start" }}>
+                {p.imageUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img className="product-img" src={p.imageUrl} alt="" loading="lazy" />
+                )}
+                <div>
                 <div className="title"><strong>{p.name}</strong></div>
                 {p.description && <div className="small muted">{p.description}</div>}
                 <div className="price">{rands(p.priceCents)}</div>
+                </div>
               </div>
               <div className="row" aria-label={`Quantity of ${p.name}`}>
                 <button className="btn btn-sm" aria-label="Fewer" onClick={() => setQty({ ...qty, [p.id]: Math.max(0, (qty[p.id] ?? 0) - 1) })}>−</button>

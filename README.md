@@ -11,6 +11,31 @@ From the customer's side it's just: choose product → choose where to receive i
 
 Stack: Next.js 15 (App Router), Prisma 6 + PostgreSQL 16, zod, `node:test`.
 
+## Onboarding an associate (about 5 minutes)
+
+Built so a new associate (e.g. an APLGO distributor) can start selling the same day, without any Meta or developer setup.
+
+1. **You** (platform admin) open **Admin**, create an invite link for them, and send it on WhatsApp.
+2. **They** open it on their phone and go through four screens:
+   - **You:** name, WhatsApp number, email and password (plus an optional associate ID).
+   - **Products:** tick what they stock from the shared catalogue you loaded. Photos and prices are filled in.
+   - **Delivery:** their address; PEP / PAXI (using your default PAXI prices) and "collect from me" are on by default.
+   - **Payments:** paste their own Yoco secret key, or enter EFT / cash instructions.
+3. They get their shop link and a ready-made message for their WhatsApp status.
+
+How it works before their own number is connected to WhatsApp's API ("share-link mode"):
+
+- **Chatting with the seller:** customers use "Chat with Sandile" (a wa.me link to the associate's own number).
+- **After ordering:** customers can tap "Send your order to Sandile on WhatsApp".
+- **Order and delivery updates:** these come from the shared Chatcart number (`WHATSAPP_PLATFORM_PHONE_ID`), with the shop's name in every message. The associate gets a WhatsApp alert for each paid order.
+
+**Payments.** Card payments go through **the associate's own Yoco account**, so money goes straight to them and Chatcart never holds funds. When an associate connects Yoco, Chatcart registers a webhook on their Yoco account. Orders are marked paid only by a correctly signed `payment.succeeded` event for the exact order amount. The Yoco client (`src/server/payments/yoco.ts`) follows Yoco's published Checkout API and is tested against recorded responses. **Check it once with a test key (`sk_test_…`) before going live.**
+
+**Before inviting associates**, as platform admin (your email in `PLATFORM_ADMIN_EMAILS`):
+1. Load the product catalogue: **Admin → Product catalogue**, uploading a CSV with columns `sku, name, price` plus optional `description, image_url, category, weight_g, length_cm, width_cm, height_cm`. Re-uploading updates names, photos and sizes in every shop, but never associates' own prices. The seed script's `SAMPLE-*` products are placeholders.
+2. Set **Admin → Default PEP / PAXI prices**.
+3. Check the brand's distributor policy on online selling.
+
 ## Delivery architecture
 
 ```
