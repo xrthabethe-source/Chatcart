@@ -3,6 +3,7 @@ import Link from "next/link";
 import { checkInvite } from "@/server/services/invites";
 import { NotFoundError } from "@/server/services/errors";
 import { SetupWizard } from "../../_onboarding/setup-wizard";
+import { SiteFooter } from "../../_lib/site-footer";
 
 export const metadata: Metadata = { title: "Open your Chatcart shop" };
 export const dynamic = "force-dynamic";
@@ -22,5 +23,10 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
       </main>
     );
   }
-  return <SetupWizard token={token} invitedName={invite.label} startAt="account" />;
+  return (
+    <>
+      <SetupWizard token={token} invitedName={invite.label} startAt="account" />
+      <SiteFooter />
+    </>
+  );
 }

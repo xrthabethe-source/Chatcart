@@ -434,6 +434,7 @@ export async function getOrderForPayment(orderId: string) {
     cardPayments: !!order.tenant.yocoSecretKeyEncrypted,
     paymentInstructions: order.tenant.paymentInstructions,
     sellerName: order.tenant.sellerDisplayName ?? order.tenant.name,
+    sellerWhatsAppNumber: order.tenant.whatsappNumber,
     // Opens the customer's WhatsApp with a message to the seller's own
     // number — works before the seller's number is connected to the API.
     sellerWhatsAppUrl: order.tenant.whatsappNumber

@@ -177,6 +177,8 @@ npm run test:local && npm run typecheck && npm run lint
 
 **Cron:** every 15–30 minutes, `POST /api/v1/delivery/tracking/sync` with `Authorization: Bearer $CRON_SECRET`. It refreshes courier tracking and flushes the WhatsApp outbox.
 
+**Domain and public website:** `chatcart.co.za` is the public site (designed in Lovable; prompts in [docs/lovable/](docs/lovable/)), and `app.chatcart.co.za` runs this app. Setup is in [docs/deploy.md §1.3b](docs/deploy.md). With `PUBLIC_SITE_URL` set, shop, checkout and invite pages link to its Terms, Privacy, Refunds, Delivery and Contact pages.
+
 **Deploying and connecting WhatsApp:** follow [docs/deploy.md](docs/deploy.md). It covers Railway (`railway.json` for the web app, `railway.cron.json` for the 15-minute tracking job), Meta app setup, linking the number under **Shop settings**, and the message templates in [docs/whatsapp-templates.md](docs/whatsapp-templates.md). After editing a template's wording in `src/server/delivery/messages.ts`, regenerate that doc with `node --experimental-strip-types scripts/generate-template-doc.ts`. A test fails if the two drift apart.
 
 ## Not built yet

@@ -30,7 +30,8 @@ In the Chatcart service, open **Variables** and add:
 | Variable | Value |
 |---|---|
 | `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` (Railway fills it in from the database) |
-| `APP_BASE_URL` | your app URL, e.g. `https://chatcart-production.up.railway.app` |
+| `APP_BASE_URL` | your app URL, e.g. `https://chatcart-production.up.railway.app`, then `https://app.chatcart.co.za` once your domain is set up (1.3b) |
+| `PUBLIC_SITE_URL` | `https://chatcart.co.za` once the public site is live (1.3b). Leave it unset before then. |
 | `DELIVERY_CREDENTIALS_KEY` | 32 random bytes: run `openssl rand -base64 32` and paste the output. Keep a copy: if it changes, sellers have to re-enter their courier API keys. |
 | `CRON_SECRET` | any long random string, e.g. another `openssl rand -base64 32` |
 | `PLATFORM_ADMIN_EMAILS` | your own seller login email. Admins can link WhatsApp numbers and import the PAXI Point list. |
@@ -50,6 +51,29 @@ This job checks couriers for tracking updates and sends any queued WhatsApp mess
    - `CRON_SECRET`: the same value as the web service
 
 The job's logs should show `Tracking sync OK` every 15 minutes.
+
+### 1.3b Put it on your domain (chatcart.co.za)
+
+Do this **before inviting associates**. Each shop's Yoco webhook and every shared shop link use the app's address, so moving later means associates must reconnect Yoco and re-share their links.
+
+The split:
+
+| Address | What runs there | Where it's hosted |
+|---|---|---|
+| `chatcart.co.za` (and `www.`) | Public website: home, how it works, pricing, Terms, Privacy, Refunds, Delivery, Contact | Lovable (see [lovable/1-website-prompt.md](lovable/1-website-prompt.md)) |
+| `app.chatcart.co.za` | Chatcart: seller login and dashboard, invite links, shops, checkout, payments, webhooks | Railway |
+
+1. **Register `chatcart.co.za`** with any .co.za registrar (e.g. Domains.co.za, Afrihost or xneelo). You'll manage its DNS records there.
+2. **Point the main site at Lovable.** In your Lovable project, open **Settings → Domains → Connect domain**, enter `chatcart.co.za`, and add the DNS records Lovable shows you at your registrar. Do the same for `www.chatcart.co.za` if Lovable offers it. Custom domains need a paid Lovable plan.
+3. **Point `app.` at Railway.** In Railway, open the Chatcart web service → **Settings → Networking → Custom domain**, and enter `app.chatcart.co.za`. Railway shows a **CNAME** target. At your registrar, add a CNAME record with name `app` and that target. Railway issues the HTTPS certificate automatically, usually within minutes of DNS updating.
+4. **Update the web service's variables** and let it redeploy:
+   - `APP_BASE_URL` = `https://app.chatcart.co.za`
+   - `PUBLIC_SITE_URL` = `https://chatcart.co.za` (checkout and shop pages then link to the policy pages there, and `app.chatcart.co.za/` goes to seller login)
+5. **Update the cron service:** `APP_BASE_URL` = `https://app.chatcart.co.za`.
+6. **Update Meta** (part 2): use `https://app.chatcart.co.za/api/v1/whatsapp/webhook` as the webhook URL, and add `app.chatcart.co.za` to the JavaScript SDK's allowed domains (2.7).
+7. **Set up an email address on the domain** (e.g. `hello@chatcart.co.za`, through your registrar's mail or Google Workspace). Meta business verification and payment-provider reviews look for contact details on your own domain.
+
+**For Yoco or PayFast reviews:** each associate's shop link (`app.chatcart.co.za/shop/…`) shows the seller's name and contact details, plus links to your Terms, Privacy, Refunds and Delivery pages. That's what reviewers usually check. Make sure the business details on the Lovable site (company name, registration number, address, email and phone) are filled in and match your documents.
 
 ### 1.4 Set up the platform and invite associates
 

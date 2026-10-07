@@ -1,6 +1,13 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { publicSiteUrl } from "./_lib/site";
+
+export const dynamic = "force-dynamic";
 
 export default function Home() {
+  // On app.chatcart.co.za the marketing site lives elsewhere; this
+  // address is for sellers signing in.
+  if (publicSiteUrl()) redirect("/login");
   return (
     <main className="narrow stack">
       <h1>Chatcart</h1>

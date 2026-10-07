@@ -4,6 +4,7 @@ import { getOrderForPayment } from "@/server/services/checkout";
 import { NotFoundError } from "@/server/services/errors";
 import { rands } from "../../_lib/format";
 import { PayActions } from "./pay-actions";
+import { SiteFooter } from "../../_lib/site-footer";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,7 @@ export default async function PayPage({ params, searchParams }: { params: Promis
         sellerWhatsAppUrl={order.sellerWhatsAppUrl}
         simulate={process.env.APP_ENV === "development"}
       />
+      <SiteFooter seller={{ shopName: order.shopName, whatsappNumber: order.sellerWhatsAppNumber, cardPayments: order.cardPayments }} />
     </main>
   );
 }

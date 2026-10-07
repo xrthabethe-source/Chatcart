@@ -170,3 +170,8 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 16px 0; }
   table.stack-on-phone td[data-label]::before { content: attr(data-label); display: block; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
   .topbar nav a { padding: 4px 8px; font-size: 0.9rem; }
 }
+
+.site-footer { max-width: 560px; margin: 8px auto 32px; padding: 16px; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.82rem; display: grid; gap: 8px; }
+.site-footer p { margin: 0; }
+.site-footer nav { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.site-footer a { color: var(--muted); }
